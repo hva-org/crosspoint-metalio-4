@@ -122,6 +122,9 @@ void CrossPointSettings::toJson(JsonDocument& doc) const {
   }
 
   bleturner::writeJson(ble, doc);
+#if CROSSPOINT_AUDIOBOOK
+  audiobook::writeJson(audio, doc);
+#endif
 }
 
 bool CrossPointSettings::fromJson(JsonVariantConst doc) {
@@ -312,6 +315,9 @@ bool CrossPointSettings::fromJson(JsonVariantConst doc) {
   if (!bleturner::readJson(ble, doc)) {
     needsResave = true;
   }
+#if CROSSPOINT_AUDIOBOOK
+  audiobook::readJson(audio, doc);
+#endif
 
   if (needsResave) {
     LOG_DBG("CPS", "Resaving settings to update format");

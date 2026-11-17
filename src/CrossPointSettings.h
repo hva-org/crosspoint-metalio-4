@@ -8,6 +8,9 @@
 
 #include <cstdint>
 
+#if CROSSPOINT_AUDIOBOOK
+#include "audio/AudioSettings.h"
+#endif
 #include "util/HomeButtonInput.h"
 #include "util/PowerButtonInput.h"
 
@@ -438,6 +441,10 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   uint16_t keyboardLayouts = 0;
   // Bluetooth page turner, saved under the keys lib/BlePageTurner reads and writes (BlePageTurnerJson.h).
   bleturner::Config ble;
+#if CROSSPOINT_AUDIOBOOK
+  // Audiobook output, speed, volume and headset, saved under "audio" (audio/AudioSettings.h).
+  audiobook::AudioSettings audio;
+#endif
   // Quick Resume: keep current content visible with moon icon instead of showing a static sleep screen.
   uint8_t quickResumeSleepScreen = QUICK_RESUME_NEVER;
 

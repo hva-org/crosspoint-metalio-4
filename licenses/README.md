@@ -48,6 +48,8 @@ The `scripts/` directory contains CrossPoint's changes to those dependencies.
 | Built-in fonts and SD card fonts | `fonts.txt`. |
 | Hyphenation data | `hyphenation.txt`. |
 | Lucide and Feather icons | `freeink-sdk/libs/assets/Icons/lucide/LICENSE`. |
+| Helix MP3 and AAC decoders (`lib/helix`) | RealNetworks RPSL, or RCSL for RCSL licensees; texts in `lib/helix/src/*/`. GPL-incompatible: only the local `metalio_eink4-audiobook` build includes them, and that build must not be distributed. |
+| Sonic (`lib/sonic`) | Apache-2.0 in `lib/sonic/LICENSE`. Built only into `metalio_eink4-audiobook`. |
 
 The release file includes the notices from the installed dependency versions.
 Keep original notices when you update or copy third-party code.
@@ -66,6 +68,7 @@ The notices do not grant permission to use a reserved name.
 
 Russian, Swedish, and Ukrainian hyphenation patterns use LPPL terms.
 Their compatibility with the combined GPL firmware remains an open question.
+The Helix decoders are not compatible with the GPL; no released firmware includes them.
 The source requirements for some platform binary libraries also remain open.
 Keep these questions separate from the notice changes.
 

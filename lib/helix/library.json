@@ -1,0 +1,9 @@
+{
+  "name": "helix",
+  "version": "0.0.0",
+  "description": "Helix fixed-point MP3 and AAC (HE-AAC v1) decoders. Vendored unmodified; see README.md.",
+  "license": "RPSL-1.0",
+  "build": {
+    "flags": ["-w"]
+  }
+}

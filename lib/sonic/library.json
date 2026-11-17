@@ -1,0 +1,9 @@
+{
+  "name": "sonic",
+  "version": "0.0.0",
+  "description": "Sonic speech speed-up/slow-down and resampling. Vendored unmodified; see README.md.",
+  "license": "Apache-2.0",
+  "build": {
+    "flags": ["-Wno-unused-parameter"]
+  }
+}

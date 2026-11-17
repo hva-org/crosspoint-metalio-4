@@ -1,5 +1,9 @@
 #include "UsbDriveActivity.h"
 
+#if CROSSPOINT_AUDIOBOOK
+#include "audio/AudiobookService.h"
+#endif
+
 #include <Arduino.h>
 #include <HalStorage.h>
 #include <I18n.h>
@@ -12,6 +16,9 @@ namespace fui = freeink::ui;
 
 void UsbDriveActivity::onEnter() {
   Activity::onEnter();
+#if CROSSPOINT_AUDIOBOOK
+  AUDIOBOOK.close();  // this screen takes the SD card or rewrites flash
+#endif
   resetUi();
   app.setScreen(&UsbDriveActivity::driveScreen, this);
 

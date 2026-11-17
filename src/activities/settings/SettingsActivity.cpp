@@ -16,6 +16,9 @@
 
 #include "AboutActivity.h"
 #include "BleSettingsActivity.h"
+#if CROSSPOINT_AUDIOBOOK
+#include "BtHeadphonesActivity.h"
+#endif
 #include "ButtonRemapActivity.h"
 #include "ClearCacheActivity.h"
 #include "ClockSettingsActivity.h"
@@ -197,6 +200,9 @@ void SettingsActivity::rebuildSettings() {
   if (bleturner::status().compiledIn) {
     addAction(SettingsSection::Network, StrId::STR_BT_PAGE_TURNER, SettingAction::Bluetooth);
   }
+#if CROSSPOINT_AUDIOBOOK
+  addAction(SettingsSection::Network, StrId::STR_AUDIOBOOK_HEADPHONES_SETTINGS, SettingAction::BluetoothHeadphones);
+#endif
   addAction(SettingsSection::Network, StrId::STR_KOREADER_SYNC, SettingAction::KOReaderSync);
   addAction(SettingsSection::Network, StrId::STR_OPDS_SERVERS, SettingAction::OPDSBrowser);
   addAction(SettingsSection::Network, StrId::STR_PLUGINS, SettingAction::Plugins);
@@ -449,6 +455,17 @@ void SettingsActivity::toggleSelectedSetting() {
         startActivityForResult(std::move(activity), resultHandler);
         break;
       }
+#if CROSSPOINT_AUDIOBOOK
+      case SettingAction::BluetoothHeadphones: {
+        auto activity = makeUniqueNoThrow<BtHeadphonesActivity>(renderer, mappedInput);
+        if (!activity) {
+          LOG_ERR("SETTINGS", "OOM: BtHeadphonesActivity");
+          return;
+        }
+        startActivityForResult(std::move(activity), resultHandler);
+        break;
+      }
+#endif
       case SettingAction::ClearCache:
         startActivityForResult(std::make_unique<ClearCacheActivity>(renderer, mappedInput), resultHandler);
         break;

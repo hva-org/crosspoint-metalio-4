@@ -1,5 +1,9 @@
 #include "SdFirmwareUpdateActivity.h"
 
+#if CROSSPOINT_AUDIOBOOK
+#include "audio/AudiobookService.h"
+#endif
+
 #include <Arduino.h>
 #include <GfxRenderer.h>
 #include <HalStorage.h>
@@ -16,6 +20,9 @@
 
 void SdFirmwareUpdateActivity::onEnter() {
   Activity::onEnter();
+#if CROSSPOINT_AUDIOBOOK
+  AUDIOBOOK.close();  // this screen takes the SD card or rewrites flash
+#endif
   // Build-identity marker — confirms which firmware build owns the SD update flow.
   LOG_INF("FW", "SdFirmwareUpdateActivity build=%s %s recovery=%d", __DATE__, __TIME__, recoveryMode ? 1 : 0);
   state = State::PICKING;

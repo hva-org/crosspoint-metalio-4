@@ -22,6 +22,11 @@
 #include "fontIds.h"
 #include "util/BookCacheUtils.h"
 #include "util/BookmarkUtil.h"
+#if CROSSPOINT_AUDIOBOOK
+#include <BookModel.h>
+
+#include "audio/AudiobookService.h"
+#endif
 
 namespace fui = freeink::ui;
 
@@ -35,6 +40,11 @@ std::string getBookCachePath(const std::string& path) {
     prefix = "epub_";
   } else if (FsHelpers::hasXtcExtension(path)) {
     prefix = "xtc_";
+#if CROSSPOINT_AUDIOBOOK
+  } else if (audiobook::isAudiobookFile(path)) {
+    // A single-file book's position moves with it; a folder book's stays with the folder.
+    return audiobook::progressKey(path) == path ? audiobook::progressDir(path) : "";
+#endif
   } else {
     return "";
   }
@@ -134,6 +144,10 @@ void FileBrowserActivity::loadFiles() {
       } else if (FsHelpers::hasReflowableBookExtension(filename) || FsHelpers::hasXtcExtension(filename) ||
                  FsHelpers::hasImageExtension(filename)) {
         files.emplace_back(filename);
+#if CROSSPOINT_AUDIOBOOK
+      } else if (audiobook::isAudiobookFile(filename)) {
+        files.emplace_back(filename);
+#endif
       }
     }
   }
@@ -239,6 +253,9 @@ void FileBrowserActivity::onExit() {
 // To avoid traversing directories twice (once for cache clearing, once for deletion),
 // we do both in one pass here, instead of using Storage.removeDir
 bool FileBrowserActivity::removeDirFile(const std::string& fullPath) {
+#if CROSSPOINT_AUDIOBOOK
+  if (AUDIOBOOK.isAffectedBy(fullPath)) AUDIOBOOK.close();
+#endif
   auto file = Storage.open(fullPath.c_str());
   if (!file) {
     LOG_ERR("FileBrowser", "Failed to open for metadata clearing: %s", fullPath.c_str());
@@ -270,6 +287,11 @@ bool FileBrowserActivity::removeDirFile(const std::string& fullPath) {
         LOG_ERR("FileBrowser", "Failed to rmdir: %s", currentPath.c_str());
         return false;
       }
+#if CROSSPOINT_AUDIOBOOK
+      // A folder of MP3s is one audiobook whose saved position is keyed by the folder.
+      const std::string progress = audiobook::folderProgressDir(currentPath);
+      if (Storage.exists(progress.c_str())) Storage.removeDir(progress.c_str());
+#endif
       continue;
     }
 
@@ -486,6 +508,9 @@ void FileBrowserActivity::renameSelectedFile(const std::string& oldPath, const s
     return;
   }
 
+#if CROSSPOINT_AUDIOBOOK
+  if (AUDIOBOOK.isAffectedBy(oldPath)) AUDIOBOOK.close();
+#endif
   const std::string oldCachePath = getBookCachePath(oldPath);
   const std::string newCachePath = getBookCachePath(newPath);
   const bool hasBookmarks = FsHelpers::hasReflowableBookExtension(oldPath);
