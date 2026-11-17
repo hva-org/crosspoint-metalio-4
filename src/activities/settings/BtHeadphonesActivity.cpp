@@ -49,12 +49,19 @@ void BtHeadphonesActivity::loop() {
     saveConnectedHeadset();
   }
   if (toneWaiting) {
+    bool done = true;
     if (halAudio.clockConfirmed()) {
-      toneWaiting = false;
       // Blocks input for about a second; the render task keeps running.
       halAudio.playTestTone(TEST_TONE_MS, SETTINGS.audio.volume);
-    } else if (halAudio.wakeFailed() || millis() - toneSinceMs > TONE_WAIT_MS) {
-      toneWaiting = false;  // the Module Log says which step failed
+    } else if (halAudio.waking() && millis() - toneSinceMs <= TONE_WAIT_MS) {
+      done = false;
+    }
+    // Otherwise it failed or was cancelled (output switched); the Module Log says which.
+    if (done) {
+      toneWaiting = false;
+      refresh();  // the row's enabled state changed
+      requestUpdate();
+      return;
     }
   }
   if (halAudio.revision() == shownRevision) return;

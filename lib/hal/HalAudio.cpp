@@ -56,6 +56,9 @@ bool HalAudio::openI2s() {
 void HalAudio::closeI2s() {
   auto& bus = metalio::audioBus();
   if (bus.microphone) return;  // shared with a microphone owner; not used in this build
+  // A writer stuck past stopStream()'s wait still holds the TX handle; keep
+  // the channels until it leaves write().
+  if (writing_.load()) return;
   if (bus.txEnabled) i2s_channel_disable(bus.tx);
   if (bus.rxEnabled) i2s_channel_disable(bus.rx);
   bus.txEnabled = bus.rxEnabled = false;
@@ -96,7 +99,9 @@ bool HalAudio::acquire(const Output wanted) {
     if (opened) {
       moduleMode_ = ModuleMode::Speaker;
       headsetConnected_ = false;
-      settledAtMs_ = lastModeSentMs_ = millis();
+      lastModeSentMs_ = millis();
+      settledAtMs_ = lastModeSentMs_ + btmod::SPEAKER_MODE_SETTLE_MS;
+      settleShown_ = false;
       addLog('>', "AT+RX=2, AT+MODE=1 (SDK)");
     }
   }
@@ -323,7 +328,8 @@ void HalAudio::sendStep() {
       lastModeSentMs_ = now;
       moduleMode_ = ModuleMode::Speaker;
       headsetConnected_ = false;
-      settledAtMs_ = nextStepMs_;
+      settledAtMs_ = now + btmod::SPEAKER_MODE_SETTLE_MS;
+      settleShown_ = false;
       forgetClock();
       if (output_ == Output::Speaker && streaming_.load()) metalio::setAmplifier(true);
       break;
@@ -440,6 +446,10 @@ void HalAudio::poll() {
   if (rxBytes_ != bytesBefore) revision_++;  // the Module Log counts bytes, even of dropped lines
 
   if (stepCount_ > 0 && static_cast<int32_t>(now - nextStepMs_) >= 0) sendStep();
+  if (!settleShown_ && static_cast<int32_t>(now - settledAtMs_) >= 0) {
+    settleShown_ = true;
+    revision_++;  // screens showing "Switching" redraw
+  }
   pollWake(now);
 
   // Signed: setLink() during this poll may have read a later millis() than `now`.
@@ -487,12 +497,19 @@ bool HalAudio::probeClock() {
     if (written < sizeof(silence)) break;
   }
   closeI2s();
-  clock_ = frames >= PROBE_FRAMES ? Clock::Running : Clock::Missing;
-  return clock_ == Clock::Running;
+  clockConfirmed_ = frames >= PROBE_FRAMES;
+  lastClock_ = clockConfirmed_ ? Clock::Running : Clock::Missing;
+  revision_++;
+  return clockConfirmed_;
 }
 
 void HalAudio::pollWake(const uint32_t now) {
-  if (wake_ != Wake::Trying || stepCount_ > 0 || static_cast<int32_t>(now - wakeCheckAtMs_) < 0) return;
+  if (wake_ != Wake::Trying) return;
+  if (stepCount_ > 0) {
+    wakeCheckAtMs_ = now + WAKE_CHECK_MS;  // check only after the last command went out
+    return;
+  }
+  if (static_cast<int32_t>(now - wakeCheckAtMs_) < 0) return;
   const bool headphones = output_ == Output::Headphones;
   // Each step needs its mode, or a linked headset told to play, before a check.
   if (!(headphones ? headsetReady() : modeSettled())) {
@@ -515,6 +532,8 @@ void HalAudio::pollWake(const uint32_t now) {
   wakeDeadlineMs_ = now + WAKE_READY_MS;
   if (!headphones) {
     if (wakeStep_ == 1) {
+      addLog('!', "no clock: waiting");
+    } else if (wakeStep_ == 2) {
       addLog('!', "no clock: speaker mode again");
       clearQueue();
       moduleMode_ = ModuleMode::Unknown;
@@ -582,18 +601,31 @@ bool HalAudio::startStream() {
 void HalAudio::stopStream() {
   if (!streaming_.exchange(false)) return;
   metalio::setAmplifier(false);
+  // A write ends within one 100 ms block once streaming_ is false.
+  const uint32_t start = millis();
+  while (writing_.load() && millis() - start < 3 * WRITE_TIMEOUT_MS) delay(1);
   metalio::stopAudio(this, false);
-  closeI2s();
+  if (writing_.load()) {
+    LOG_ERR("AUD", "Writer still busy; I2S channels kept");  // deleted at the next stream start
+  } else {
+    closeI2s();
+  }
   forgetClock();  // the module may stop clocking while idle; the next stream checks again
   revision_++;
 }
 
 size_t HalAudio::write(const int16_t* samples, const size_t count, const uint8_t volume) {
-  if (!streaming_.load()) return 0;
+  // Set before checking streaming_: stopStream() clears that, then waits for
+  // this to clear before it deletes the channel.
+  writing_.store(true);
+  if (!streaming_.load()) {
+    writing_.store(false);
+    return 0;
+  }
   auto tx = metalio::audioBus().tx;
   int32_t* slots = slots_;
   size_t done = 0;
-  while (done < count) {
+  while (done < count && streaming_.load()) {
     const size_t frames = count - done < WRITE_FRAMES ? count - done : WRITE_FRAMES;
     for (size_t i = 0; i < frames; i++) {
       const int32_t v = metalio::outputSample(samples[done + i], volume);
@@ -607,6 +639,7 @@ size_t HalAudio::write(const int16_t* samples, const size_t count, const uint8_t
     done += written / (2 * sizeof(int32_t));
     if (err != ESP_OK || written < frames * 2 * sizeof(int32_t)) break;
   }
+  writing_.store(false);
   return done;
 }
 

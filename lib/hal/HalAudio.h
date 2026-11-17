@@ -101,11 +101,11 @@ class HalAudio {
   void wakeOutput();
   // Lets a failed wake run again.
   void resetWake();
-  bool clockConfirmed() const { return clock_ == Clock::Running; }
+  bool clockConfirmed() const { return clockConfirmed_; }
   bool wakeFailed() const { return wake_ == Wake::Failed; }
   bool waking() const { return wake_ == Wake::Trying; }
-  // The last check's result, for the Module Log.
-  Clock lastClock() const { return clock_; }
+  // The last check's result, for the Module Log; kept after its stream ends.
+  Clock lastClock() const { return lastClock_; }
 
   // Adds a diagnostic line to the Module Log. Main loop only.
   void note(const char* text) { addLog('!', text); }
@@ -168,7 +168,7 @@ class HalAudio {
   void closeI2s();
   bool probeClock();
   void pollWake(uint32_t now);
-  void forgetClock() { clock_ = Clock::Unchecked; }
+  void forgetClock() { clockConfirmed_ = false; }
   void queue(const char* text, uint16_t delayAfterMs, Action action = Action::None);
   void clearQueue();
   void queueSpeakerMode();
@@ -191,13 +191,15 @@ class HalAudio {
   ModuleMode moduleMode_ = ModuleMode::Unknown;
   ModuleMode queuedMode_ = ModuleMode::Unknown;  // after the queued commands
   uint32_t settledAtMs_ = 0;
+  bool settleShown_ = true;      // revision_ moved on when the settle time passed
   uint32_t lastModeSentMs_ = 0;  // 0: no mode command since boot
   bool headsetConnected_ = false;
   bool scanWaitsForMode_ = false;
   bool connectPending_ = false;  // our AT+CONNECT has no answer yet
   uint32_t musicSentMs_ = 0;     // AT+PP=1 sent for the current link; 0: not yet
 
-  Clock clock_ = Clock::Unchecked;
+  bool clockConfirmed_ = false;  // a check passed and nothing changed since
+  Clock lastClock_ = Clock::Unchecked;
   Wake wake_ = Wake::Idle;
   uint8_t wakeStep_ = 0;
   uint32_t wakeCheckAtMs_ = 0;
@@ -221,6 +223,7 @@ class HalAudio {
   uint32_t revision_ = 0;
 
   std::atomic<bool> streaming_{false};
+  std::atomic<bool> writing_{false};  // the audio task is inside write()
   // Stereo 32-bit I2S slots for one write() block; only the single writer uses it.
   int32_t slots_[WRITE_FRAMES * 2] = {};
 };

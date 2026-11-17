@@ -26,6 +26,9 @@ inline constexpr char CMD_MUSIC_START[] = "AT+PP=1\r\n";
 inline constexpr uint32_t ROLE_TO_MODE_DELAY_MS = 700;
 inline constexpr uint32_t HEADSET_MODE_SETTLE_MS = 300;
 inline constexpr uint32_t MUSIC_STEP_DELAY_MS = 20;
+// After AT+MODE=1, before the clock is checked. Our choice: no source gives
+// how long the module takes to start clocking.
+inline constexpr uint32_t SPEAKER_MODE_SETTLE_MS = 500;
 // Least time from one mode command to the next switch's first command. The
 // reference never sends them closer than a user action; back to back, the
 // module ignored the second switch.
