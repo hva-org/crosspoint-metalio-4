@@ -48,7 +48,7 @@ STR_KEY_RE = re.compile(r"\bSTR_\w+\b", flags=re.ASCII)
 # Keys used only by build-gated features, by key prefix and the -D flag that
 # enables the feature. The usage scan cannot see #if blocks, so builds without
 # the flag drop these keys instead of shipping them unused.
-GATED_KEY_PREFIXES = {"STR_AUDIOBOOK_": "CROSSPOINT_AUDIOBOOK"}
+GATED_KEY_PREFIXES = {"STR_AUDIOBOOK_": "CROSSPOINT_AUDIOBOOK", "STR_SD_LOG_": "CROSSPOINT_SD_LOG"}
 
 
 def gated_prefixes_to_drop(build_flags) -> List[str]:

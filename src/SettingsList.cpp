@@ -210,6 +210,10 @@ void forEachBaseSetting(SettingVisitor visit, void* context) {
                            StrId::STR_CAT_SYSTEM));
   emit(SettingInfo::Toggle(StrId::STR_SHOW_FILE_EXTENSIONS, &CrossPointSettings::showFileExtensions,
                            "showFileExtensions", StrId::STR_CAT_SYSTEM));
+#if CROSSPOINT_SD_LOG
+  emit(SettingInfo::Toggle(StrId::STR_SD_LOG_SETTING, &CrossPointSettings::debugLogToSd, "debugLogToSd",
+                           StrId::STR_CAT_SYSTEM));
+#endif
   emit(SettingInfo::Toggle(StrId::STR_LIBRARY_USE_METADATA, &CrossPointSettings::libraryUseMetadata,
                            "libraryUseMetadata", StrId::STR_CAT_SYSTEM));
   emit(SettingInfo::Toggle(StrId::STR_LIBRARY_RECENT_OPENED_ONLY, &CrossPointSettings::libraryRecentOpenedOnly,

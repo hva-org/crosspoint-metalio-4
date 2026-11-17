@@ -42,6 +42,13 @@ static HardwareSerial& logSerial = Serial;
 void logPrintf(const char* level, const char* origin, const char* format, ...);
 
 #ifdef ENABLE_SERIAL_LOG
+#if CROSSPOINT_SD_LOG
+// Receives every formatted log line, from any task. It must only copy the
+// line: no blocking, no logging. nullptr removes it.
+using LogSink = void (*)(const char* line);
+void setLogSink(LogSink sink);
+#endif
+
 #if LOG_LEVEL >= 0
 #define LOG_ERR(origin, format, ...) logPrintf("ERR", origin, format "\n", ##__VA_ARGS__)
 #else

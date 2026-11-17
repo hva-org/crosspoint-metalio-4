@@ -47,6 +47,9 @@
 #include "audio/AudioOutput.h"
 #include "audio/AudiobookService.h"
 #endif
+#if CROSSPOINT_SD_LOG
+#include "util/SdDebugLog.h"
+#endif
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "platform/UsbSerialJtagHandoff.h"
@@ -178,6 +181,9 @@ static void silentRestartTo(const uint32_t target, const char* targetName) {
 #endif
   armSilentReboot(target);
   LOG_DBG("MAIN", "Silent restart (target=%s)", targetName);
+#if CROSSPOINT_SD_LOG
+  sdlog::flush();
+#endif
   // E-ink retains the previous frame until the target's first paint lands
   // (~2-3s). Without an overlay, users don't see the reboot and fire input
   // through to the new activity. On Home, Select on the default
@@ -520,6 +526,9 @@ void enterDeepSleep(bool fromTimeout = false) {
 
   halTiltSensor.deepSleep();
   display.deepSleep();
+#if CROSSPOINT_SD_LOG
+  sdlog::flush();  // the last lines before the card stops
+#endif
   Storage.prepareForDeepSleep();
   LOG_DBG("MAIN", "Entering deep sleep");
 
@@ -675,6 +684,9 @@ void setup() {
     SETTINGS.readerMenuStyle = CrossPointSettings::READER_MENU_TOOLBAR;
   }
   SETTINGS.loadFromFile();
+#if CROSSPOINT_SD_LOG
+  sdlog::tick(true);  // capture from here on when the setting is on
+#endif
   // Push the saved timezone's POSIX rule into the clock (migrating the legacy
   // UTC-offset setting on first boot after the update).
   timezones::applyToClock();
@@ -896,6 +908,9 @@ void loop() {
 #if CROSSPOINT_AUDIOBOOK
   audiobook::tickOutput();
   AUDIOBOOK.tick();
+#endif
+#if CROSSPOINT_SD_LOG
+  sdlog::tick(!scene.storageBusy);
 #endif
 
   if (activityManager.requiresExclusiveStorageLoop()) {

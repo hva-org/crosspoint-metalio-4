@@ -389,6 +389,10 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   uint8_t pluginHubPromptHidden = 0;
   // Show hidden files/directories (starting with '.') in the file browser (0 = hidden, 1 = show)
   uint8_t showHiddenFiles = 0;
+#if CROSSPOINT_SD_LOG
+  // Copy log lines to /.crosspoint/debug.log (see util/SdDebugLog.h).
+  uint8_t debugLogToSd = 0;
+#endif
   // Show each file's extension at the end of its row in the file browser (0 = hide, 1 = show)
   uint8_t showFileExtensions = 1;
   // Show the title and author read from inside each book rather than its

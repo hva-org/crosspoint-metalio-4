@@ -5,6 +5,13 @@
 
 #include <string>
 
+#if CROSSPOINT_SD_LOG
+#include <atomic>
+
+static std::atomic<LogSink> logSink{nullptr};
+void setLogSink(const LogSink sink) { logSink.store(sink); }
+#endif
+
 #define MAX_ENTRY_LEN 256
 #define MAX_LOG_LINES 16
 
@@ -72,6 +79,9 @@ void logPrintf(const char* level, const char* origin, const char* format, ...) {
   logSerial.print(buf);
 #endif
   addToLogRingBuffer(buf);
+#if CROSSPOINT_SD_LOG
+  if (const LogSink sink = logSink.load()) sink(buf);
+#endif
 }
 
 std::string getLastLogs() {
