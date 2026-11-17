@@ -5,6 +5,8 @@
 #include <Memory.h>
 
 #include <algorithm>
+#include <cstdio>
+#include <cstring>
 
 #include "MappedInputManager.h"
 #include "SettingsActivity.h"
@@ -105,10 +107,24 @@ void SettingsListActivity::openSection(const SettingsSection section) {
 
 void SettingsListActivity::onBackButton() { onGoHome(); }
 
+namespace {
+// Dev versions ("<base>-dev-<branch>-<sha>") carry the branch name, which can
+// be long enough to cover the title: the header drops it. About shows it all.
+const char* headerVersion() {
+  const char* full = CROSSPOINT_VERSION;
+  const char* dev = strstr(full, "-dev-");
+  const char* sha = strrchr(full, '-');
+  if (dev == nullptr || sha <= dev + 4) return full;
+  static char text[40];
+  snprintf(text, sizeof(text), "%.*s-dev%s", static_cast<int>(dev - full), full, sha);
+  return text;
+}
+}  // namespace
+
 void SettingsListActivity::drawChrome() {
   const auto& metrics = UITheme::getInstance().getMetrics();
   // Version rides in the header's trailing label slot: the footer position
   // conflicts with button hints on non-touch devices.
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, renderer.getScreenWidth(), metrics.headerHeight},
-                 tr(STR_SETTINGS_TITLE), CROSSPOINT_VERSION);
+                 tr(STR_SETTINGS_TITLE), headerVersion());
 }
