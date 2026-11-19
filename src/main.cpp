@@ -535,6 +535,11 @@ void enterDeepSleep(bool fromTimeout = false) {
   powerManager.startDeepSleep(gpio, wakeOnHeldButton);
 }
 
+// Metalio: power the panel down after every refresh. Kept powered between
+// refreshes while awake, its ink washes gray about 30 s after sleep. Uses the
+// renderer's fading-fix path, so refreshes block instead of overlapping.
+static bool metalioPanelOffAfterRefresh() { return BoardConfig::isMetalioEInk4(); }
+
 void setupDisplayAndFonts(bool seamless = false) {
 #if !FREEINK_MCU_C3
   // C3 resolves its controller in HalGPIO::begin() before SPI claims the
@@ -551,6 +556,8 @@ void setupDisplayAndFonts(bool seamless = false) {
 
   display.begin(seamless);
   renderer.begin();
+  // setup() paints before loop() first applies the policy.
+  if (metalioPanelOffAfterRefresh()) renderer.setFadingFix(true);
   activityManager.begin();
   LOG_DBG("MAIN", "Display initialized");
 
@@ -944,7 +951,8 @@ void loop() {
     if (lock.ownsLock()) gaugeCapacityPending = BatteryMonitor::loadDesignCapacity();
   }
 
-  renderer.setFadingFix(SETTINGS.fadingFix && CrossPointSettings::fadingFixSupported());
+  renderer.setFadingFix((SETTINGS.fadingFix && CrossPointSettings::fadingFixSupported()) ||
+                        metalioPanelOffAfterRefresh());
 
   // The ROM console does not depend on Arduino USB CDC's connection state.
   if ((Serial || FREEINK_LOG_TRANSPORT == FREEINK_LOG_TRANSPORT_ROM_PRINTF) && millis() - lastMemPrint >= 10000) {

@@ -362,7 +362,8 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   uint8_t uiTheme = LYRA;
   // Sunlight fading compensation
   uint8_t fadingFix = 0;
-  // The fading fix compensates the X4/X3 grayscale waveforms; other boards never get it.
+  // The fading fix setting compensates the X4/X3 grayscale waveforms; other boards
+  // never offer it. main.cpp forces the same renderer path on Metalio.
   static bool fadingFixSupported() {
     const auto board = BoardConfig::ACTIVE.board;
     return board == BoardConfig::Board::XteinkX4 || board == BoardConfig::Board::XteinkX3 ||
