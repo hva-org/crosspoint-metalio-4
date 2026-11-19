@@ -1,5 +1,9 @@
 #include "OtaUpdateActivity.h"
 
+#if CROSSPOINT_AUDIOBOOK
+#include "audio/AudiobookService.h"
+#endif
+
 #include <GfxRenderer.h>
 #include <I18n.h>
 #include <WiFi.h>
@@ -74,6 +78,9 @@ void OtaUpdateActivity::onWifiSelectionComplete(const bool success) {
 
 void OtaUpdateActivity::onEnter() {
   Activity::onEnter();
+#if CROSSPOINT_AUDIOBOOK
+  AUDIOBOOK.close();  // this screen takes the SD card or rewrites flash
+#endif
 
   // Turn on WiFi immediately
   LOG_DBG("OTA", "Turning on WiFi...");

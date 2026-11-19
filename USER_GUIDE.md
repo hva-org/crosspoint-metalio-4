@@ -37,6 +37,7 @@ Welcome to the **CrossPoint** firmware. This guide outlines the hardware control
       - [Cover settings](#cover-settings)
       - [Custom images](#custom-images)
     - [3.8 Custom Fonts (SD Card)](#38-custom-fonts-sd-card)
+    - [3.9 Audiobooks (Metalio E-Ink 4 audiobook build only)](#39-audiobooks-metalio-e-ink-4-audiobook-build-only)
   - [4. Reading Mode](#4-reading-mode)
     - [Page Turning](#page-turning)
     - [Chapter Navigation](#chapter-navigation)
@@ -208,7 +209,7 @@ Books cannot be removed from your device through Calibre. Use the web interface 
 
 ### 3.6 Settings
 
-Settings are grouped into **System**, **Display**, **Reader**, **Controls**, **Library**, and **Connectivity**. System contains language, keyboard layouts, hidden-file visibility, file-extension visibility, Clock (where available), firmware updates, and About. Library contains Use Book Metadata, Hide New Files in Recent, Clear Read Books from Recent List, Move Finished Books to Read Folder, and Refresh Library. Time to Sleep is under Display; Clear Reading Cache is under Reader. Connectivity contains Wi-Fi, Bluetooth Page Turner, CrossPoint Sync, OPDS, and the Plugins toggle. The options below describe these settings.
+Settings are grouped into **System**, **Display**, **Reader**, **Controls**, **Library**, and **Connectivity**. System contains language, keyboard layouts, hidden-file visibility, file-extension visibility, Clock (where available), firmware updates, and About. Library contains Use Book Metadata, Hide New Files in Recent, Clear Read Books from Recent List, Move Finished Books to Read Folder, and Refresh Library. Time to Sleep is under Display; Clear Reading Cache is under Reader. Connectivity contains Wi-Fi, Bluetooth Page Turner, Bluetooth Headphones (Metalio audiobook build only), CrossPoint Sync, OPDS, and the Plugins toggle. The options below describe these settings.
 
 #### 3.6.1 Display
 
@@ -352,6 +353,8 @@ Side buttons, and Taps and gestures where supported by the device. See the
 - **Wi-Fi Networks**: Connect to Wi-Fi networks for file transfers and firmware updates.
 
 - **Bluetooth Page Turner** (**Settings → Connectivity**): Enable Bluetooth, then open **Scan for Remotes** to connect a page turner. **Paired Remotes** lists saved remotes; selecting a row marked **Forget** removes it. Once connected, open **Map Buttons**, choose a page, chapter, Confirm, Back, reader menu, or clipping action, and press the remote button within 15 seconds. Release the button within 15 seconds: a hold of at least 0.7 seconds is mapped separately from its tap. If the remote never reports a release, learning waits 15 seconds and saves the press as a tap. Hold Confirm on an action, or long-press its row, to clear it. Back cancels learning or returns to the Bluetooth menu. Mapping is optional: without custom mappings, the default remote controls remain available. Each button gesture maps to one action; assigning it again replaces its previous action. Confirm and Back act like the device buttons while reading and in the reader list menu. Next/Previous Page navigate items while a reader menu is open and turn pages when it is closed. Bluetooth can also be toggled from the reader list menu or the toolbar’s **More** menu.
+
+- **Bluetooth Headphones** (**Settings → Connectivity**, Metalio audiobook build only): See [Audiobooks](#39-audiobooks-metalio-e-ink-4-audiobook-build-only).
 
 - **CrossPoint Sync**: Settings for syncing book progress with CrossPoint Sync or a compatible KOSync server. **Smart sync** is the default for new configurations and auto-resolves simple push/pull decisions. Existing credential files retain **Ask every time** when migrated; you can switch Sync Behavior at any time if you prefer manual confirmation.
 
@@ -642,6 +645,20 @@ If the reader shows **Damaged font file**, a `.cpfont` file on the SD card is br
 See [docs/sd-card-fonts.md](./docs/sd-card-fonts.md) for full installation details and SD card folder structure.
 
 ---
+
+### 3.9 Audiobooks (Metalio E-Ink 4 audiobook build only)
+
+Only the `metalio_eink4-audiobook` firmware build has the audiobook player. That build is for personal use and is not distributed (see `lib/helix/README.md`).
+
+- **Opening a book**: `.mp3`, `.m4b` and `.m4a` files appear in **Browse Files**. An MP3 inside a folder plays all of that folder's MP3 files, in name order, as one book. An MP3 at the card root, or an M4B/M4A file, is a book on its own. Books you open appear in the Home screen's recent books and the Library's **Recent** tab.
+- **Player**: **Confirm** plays or pauses, and **Up**/**Down** (the volume keys) change the volume. The on-screen buttons skip 30 seconds back or forward, go to the previous or next chapter, change the speed (0.75×, 1×, 1.25×, 1.5×, 1.75× or 2×, keeping the pitch), list the chapters, and choose the output. **Previous** restarts the current chapter once it has played for a few seconds. Times are shown in whole minutes.
+- **Background playback**: **Back** leaves the player and the book keeps playing. Open it again from the Home screen or the Library's **Recent** tab to return to the player. The device does not go to sleep on its own while a book plays; after three hours without a button press or touch, playback pauses so it can.
+- **Saved position**: The position is saved when you pause, every 30 seconds while playing, and when the device sleeps. Playback stops when the device sleeps or restarts, when USB Drive or a firmware update starts, and when the book's files are renamed or deleted. A finished book starts again from the beginning.
+- **Control center**: Swipe down from the top edge for the volume slider (also **Up**/**Down**) and an output button that switches between the speaker and the saved headphones. While a book is open it also has 30-second skips and play/pause (also **Confirm**). A status line shows the chapter, playback state and output while a book is open, otherwise what the headphones connection is doing. A book that is playing pauses during a switch and continues once the new output is ready; if the headphones do not connect, it stays paused. With no headphones saved, the output button opens the Bluetooth Headphones screen.
+- **Bluetooth headphones** (**Settings → Connectivity → Bluetooth Headphones**): Choose **Scan for Headphones** and select your headphones; once they connect they are saved and become the output. A scan pauses a book that is playing. Leaving the scan without picking returns to the output you had. Select the saved headphones to connect them and use them as the output; **Forget Headphones** forgets them and switches back to the speaker. **Audio Output** switches between the speaker and the saved headphones (with none saved, it starts a scan). **Test Sound** plays a short tone on the speaker, or on connected headphones, while no book is playing. **Module Log** shows whether the last check found the module supplying the audio clock, and lists the last commands sent to it and its replies, for troubleshooting. With headphones selected, playback starts once they connect. Which headphones work depends on the board's audio module.
+- **Sound quality**: Output is 16 kHz mono, which suits speech more than music.
+- **Debug log**: **Settings → System → Debug Log to SD Card** writes every log line, including the Bluetooth module's commands and replies, to `/.crosspoint/debug.log` on the card about once a second. Above 2 MB the file becomes `debug.old.log` and a new one starts. Turn it off when you no longer need it.
+- **Updates**: Updating over Wi-Fi installs the standard firmware, which has no audiobook player. Build and flash `metalio_eink4-audiobook` again to get it back.
 
 ## 4. Reading Mode
 

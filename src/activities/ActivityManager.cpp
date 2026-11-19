@@ -31,6 +31,11 @@
 #include "settings/OpdsServerListActivity.h"
 #include "settings/SettingsListActivity.h"
 #include "util/BmpViewerActivity.h"
+#if CROSSPOINT_AUDIOBOOK
+#include <BookModel.h>
+
+#include "audio/AudiobookPlayerActivity.h"
+#endif
 #include "util/FrontlightPanelActivity.h"
 #include "util/FullScreenMessageActivity.h"
 
@@ -339,6 +344,18 @@ void ActivityManager::goToReader(std::string path, const bool allowFastInitialRe
     replaceActivity(std::move(activity));
     return;
   }
+
+#if CROSSPOINT_AUDIOBOOK
+  if (audiobook::isAudiobookFile(path)) {
+    auto player = makeUniqueNoThrow<AudiobookPlayerActivity>(renderer, mappedInput, std::move(path));
+    if (!player) {
+      LOG_ERR("ACT", "OOM: audiobook player activity");
+      return;
+    }
+    replaceActivity(std::move(player));
+    return;
+  }
+#endif
 
   auto activity = ReaderActivity::create(renderer, mappedInput, std::move(path), allowFastInitialRefresh);
   if (activity) {

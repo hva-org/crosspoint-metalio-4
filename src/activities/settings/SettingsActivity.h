@@ -22,6 +22,9 @@ enum class SettingAction {
   OPDSBrowser,
   Network,
   Bluetooth,
+#if CROSSPOINT_AUDIOBOOK
+  BluetoothHeadphones,
+#endif
   ClearCache,
   RefreshLibrary,
   DisplayRefresh,

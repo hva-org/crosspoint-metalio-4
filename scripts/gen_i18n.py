@@ -45,6 +45,24 @@ YAML_KEY_RE = re.compile(r'^([A-Za-z_]\w*)\s*:\s*"(.*)"$', flags=re.ASCII)
 CPP_IDENTIFIER_RE = re.compile(r"^[A-Za-z_]\w*$", flags=re.ASCII)
 STR_KEY_RE = re.compile(r"\bSTR_\w+\b", flags=re.ASCII)
 
+# Keys used only by build-gated features, by key prefix and the -D flag that
+# enables the feature. The usage scan cannot see #if blocks, so builds without
+# the flag drop these keys instead of shipping them unused.
+GATED_KEY_PREFIXES = {"STR_AUDIOBOOK_": "CROSSPOINT_AUDIOBOOK", "STR_SD_LOG_": "CROSSPOINT_SD_LOG"}
+
+
+def gated_prefixes_to_drop(build_flags) -> List[str]:
+    """Return the gated key prefixes whose enabling flag is not defined."""
+    if isinstance(build_flags, (list, tuple)):
+        text = " ".join(str(f) for f in build_flags)
+    else:
+        text = str(build_flags or "")
+    return [
+        prefix
+        for prefix, flag in GATED_KEY_PREFIXES.items()
+        if not re.search(rf"-D\s*{flag}(?:=1)?(?![=\w])", text)
+    ]
+
 
 # ---------------------------------------------------------------------------
 # YAML file reading (simple key: "value" format, no PyYAML dependency)
@@ -878,6 +896,7 @@ def main(
     strip_unused: bool = False,
     verbose: bool = False,
     builtin_langs: Optional[str] = None,
+    drop_prefixes: Optional[List[str]] = None,
 ) -> None:
     # Default paths (relative to project root)
     default_translations_dir = "lib/I18n/translations"
@@ -923,6 +942,10 @@ def main(
         else:
             used_keys = set(string_keys)
             unused_set = set()
+        if drop_prefixes:
+            gated = {k for k in string_keys if k.startswith(tuple(drop_prefixes))}
+            unused_set |= gated
+            used_keys -= gated
 
         # --- Missing-string detection (used in code but absent from English) ---
         missing_keys = sorted(used_keys - set(string_keys))
@@ -1074,4 +1097,5 @@ else:
         main(
             strip_unused=True,
             builtin_langs=env.GetProjectOption("custom_i18n_builtin_langs", "all"),
+            drop_prefixes=gated_prefixes_to_drop(env.GetProjectOption("build_flags", "")),
         )

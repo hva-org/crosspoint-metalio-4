@@ -1,5 +1,12 @@
 #include "UsbDriveActivity.h"
 
+#if CROSSPOINT_AUDIOBOOK
+#include "audio/AudiobookService.h"
+#endif
+#if CROSSPOINT_SD_LOG
+#include "util/SdDebugLog.h"
+#endif
+
 #include <Arduino.h>
 #include <HalStorage.h>
 #include <I18n.h>
@@ -12,11 +19,17 @@ namespace fui = freeink::ui;
 
 void UsbDriveActivity::onEnter() {
   Activity::onEnter();
+#if CROSSPOINT_AUDIOBOOK
+  AUDIOBOOK.close();  // this screen takes the SD card or rewrites flash
+#endif
   resetUi();
   app.setScreen(&UsbDriveActivity::driveScreen, this);
 
   // Show the safety instructions before giving the raw SD card to the USB host.
   requestUpdateAndWait();
+#if CROSSPOINT_SD_LOG
+  sdlog::flush();  // the card is the host's until the restart
+#endif
   if (!Storage.beginUsbDrive()) {
     LOG_ERR("USB", "Unable to start USB Drive");
     preparing = false;

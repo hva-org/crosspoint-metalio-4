@@ -43,6 +43,13 @@
 #include "activities/Activity.h"
 #include "activities/ActivityManager.h"
 #include "activities/settings/SdFirmwareUpdateActivity.h"
+#if CROSSPOINT_AUDIOBOOK
+#include "audio/AudioOutput.h"
+#include "audio/AudiobookService.h"
+#endif
+#if CROSSPOINT_SD_LOG
+#include "util/SdDebugLog.h"
+#endif
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "platform/UsbSerialJtagHandoff.h"
@@ -169,8 +176,14 @@ static void armSilentReboot(const uint32_t target) {
 // running in that case.
 static void silentRestartTo(const uint32_t target, const char* targetName) {
   if (deepSleepInProgress) return;  // sleeping supersedes the heap-defrag reboot
+#if CROSSPOINT_AUDIOBOOK
+  AUDIOBOOK.close();  // save the position and stop playback
+#endif
   armSilentReboot(target);
   LOG_DBG("MAIN", "Silent restart (target=%s)", targetName);
+#if CROSSPOINT_SD_LOG
+  sdlog::flush();
+#endif
   // E-ink retains the previous frame until the target's first paint lands
   // (~2-3s). Without an overlay, users don't see the reboot and fire input
   // through to the new activity. On Home, Select on the default
@@ -204,6 +217,9 @@ void silentRestartToJoinNetwork() {
 
 void restartToHomeAfterStorageHandoff() {
   if (deepSleepInProgress) return;  // sleeping supersedes the storage handoff reboot
+#if CROSSPOINT_AUDIOBOOK
+  AUDIOBOOK.close();
+#endif
   armSilentReboot(SILENT_REBOOT_TARGET_HOME);
   LOG_DBG("MAIN", "Restart after storage handoff (target=home)");
   GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
@@ -455,6 +471,9 @@ static bool holdSleepWhileUsbPowered() {
 void enterDeepSleep(bool fromTimeout = false) {
   HalPowerManager::Lock powerLock;  // Ensure we are at normal CPU frequency for sleep preparation
   APP_STATE.lastSleepFromReader = activityManager.isReaderActivity();
+#if CROSSPOINT_AUDIOBOOK
+  AUDIOBOOK.pause();  // silent during the sleep-screen refresh; closed below
+#endif
 
   // Sleep may end in a power-off (battery death, latch); persist the clock
   // floor now so a later cold boot resumes from it.
@@ -477,6 +496,10 @@ void enterDeepSleep(bool fromTimeout = false) {
   APP_STATE.saveToFile();
 
   activityManager.goToSleep(fromTimeout);
+#if CROSSPOINT_AUDIOBOOK
+  // The player screens are gone now; free the book before the card shuts down.
+  AUDIOBOOK.close();
+#endif
 
   if (isQuickResumeSleep) {
     saveSleepFrameBuffer();
@@ -503,6 +526,9 @@ void enterDeepSleep(bool fromTimeout = false) {
 
   halTiltSensor.deepSleep();
   display.deepSleep();
+#if CROSSPOINT_SD_LOG
+  sdlog::flush();  // the last lines before the card stops
+#endif
   Storage.prepareForDeepSleep();
   LOG_DBG("MAIN", "Entering deep sleep");
 
@@ -658,6 +684,9 @@ void setup() {
     SETTINGS.readerMenuStyle = CrossPointSettings::READER_MENU_TOOLBAR;
   }
   SETTINGS.loadFromFile();
+#if CROSSPOINT_SD_LOG
+  sdlog::tick(true);  // capture from here on when the setting is on
+#endif
   // Push the saved timezone's POSIX rule into the clock (migrating the legacy
   // UTC-offset setting on first boot after the update).
   timezones::applyToClock();
@@ -876,6 +905,13 @@ void loop() {
   scene.storageBusy = activityManager.requiresExclusiveStorageLoop();
   scene.wifiOn = WiFi.getMode() != WIFI_MODE_NULL;
   const bool remoteActed = bleturner::tick(scene);
+#if CROSSPOINT_AUDIOBOOK
+  audiobook::tickOutput(!scene.storageBusy);
+  AUDIOBOOK.tick();
+#endif
+#if CROSSPOINT_SD_LOG
+  sdlog::tick(!scene.storageBusy);
+#endif
 
   if (activityManager.requiresExclusiveStorageLoop()) {
     // USB Drive handed the raw SD card to the host. Do not run screenshots,
@@ -946,7 +982,15 @@ void loop() {
                          halTiltSensor.hadActivity() || remoteActed;
   if (userInput) lastInputTime = millis();
   idleDisplayWhileAwake();
-  if (userInput || activityManager.preventAutoSleep()) {
+  bool backgroundWork = activityManager.preventAutoSleep();
+#if CROSSPOINT_AUDIOBOOK
+  // Playback keeps the device awake, but not without end: after hours with no
+  // input (headphones gone quiet, listener asleep) pause and let it sleep.
+  constexpr unsigned long AUDIOBOOK_UNATTENDED_MS = 3UL * 60UL * 60UL * 1000UL;
+  if (AUDIOBOOK.isPlaying() && millis() - lastInputTime >= AUDIOBOOK_UNATTENDED_MS) AUDIOBOOK.pause();
+  backgroundWork = backgroundWork || AUDIOBOOK.isPlaying();  // audiobooks play behind any screen
+#endif
+  if (userInput || backgroundWork) {
     lastActivityTime = millis();         // Reset inactivity timer
     powerManager.setPowerSaving(false);  // Restore normal CPU frequency on user activity
   }
