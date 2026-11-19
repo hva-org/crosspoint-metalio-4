@@ -17,37 +17,53 @@
 namespace fui = freeink::ui;
 
 namespace {
-enum class MenuRow : int16_t { Output, Scan, Saved, TestSound, ModuleLog };
+enum class MenuRow : int16_t { Output, Saved, Forget, Scan, TestSound, ModuleLog };
 constexpr int16_t SCAN_AGAIN = -1;
 constexpr int16_t INFO_ROW = -2;
 constexpr uint32_t TEST_TONE_MS = 1000;
-// A scan reports devices one at a time; each e-ink repaint redraws the list.
-constexpr unsigned long STATUS_REPAINT_MS = 3000;
+// The Module Log changes with every byte the module sends.
+constexpr unsigned long LOG_REFRESH_MS = 1000;
 // A headset reconnect inside the clock check can take this long.
 constexpr unsigned long TONE_WAIT_MS = 45000;
 
 bool headphonesSelected() { return halAudio.output() == HalAudio::Output::Headphones; }
+
+// FNV-1a over what the rows show, so the screen repaints only on a change.
+uint32_t rowSignature(const std::vector<fui::ListItem>& rows) {
+  uint32_t hash = 2166136261u;
+  const auto mix = [&hash](const char* text) {
+    for (const char* c = text ? text : ""; *c != '\0'; ++c) {
+      hash = (hash ^ static_cast<uint8_t>(*c)) * 16777619u;
+    }
+    hash = (hash ^ 0xFFu) * 16777619u;  // field separator
+  };
+  for (const auto& row : rows) {
+    mix(row.label);
+    mix(row.value);
+    mix(row.subtitle);
+    hash = (hash ^ (row.enabled ? 1u : 2u)) * 16777619u;
+  }
+  return hash;
+}
 }  // namespace
 
 void BtHeadphonesActivity::onEnter() {
   UiListActivity::onEnter();
-  audioOpen = audiobook::acquireOutput();
+  audioOpen = audiobook::ensureOutput();
   refresh();
   requestUpdate();
 }
 
 void BtHeadphonesActivity::onExit() {
-  if (audioOpen) audiobook::releaseOutput();
-  audioOpen = false;
+  if (toneWaiting) halAudio.cancelWake();
+  toneWaiting = false;
+  // After a scan or a pick that did not connect; any way out of the screen.
+  audiobook::applySavedOutput();
   UiListActivity::onExit();
 }
 
 void BtHeadphonesActivity::loop() {
   UiListActivity::loop();
-  if (pickedAddress[0] != '\0' && halAudio.link() == HalAudio::Link::Connected &&
-      strcmp(halAudio.connectedAddress(), pickedAddress) == 0) {
-    saveConnectedHeadset();
-  }
   if (toneWaiting) {
     bool done = true;
     if (halAudio.clockConfirmed()) {
@@ -58,16 +74,16 @@ void BtHeadphonesActivity::loop() {
     }
     // Otherwise it failed or was cancelled (output switched); the Module Log says which.
     if (done) {
+      if (halAudio.waking()) halAudio.cancelWake();  // timed out
       toneWaiting = false;
-      refresh();  // the row's enabled state changed
-      requestUpdate();
+      if (refresh()) requestUpdate();  // the row's enabled state changed
       return;
     }
   }
-  if (halAudio.revision() == shownRevision) return;
-  if (millis() - lastRepaintMs < STATUS_REPAINT_MS) return;
-  refresh();
-  requestUpdate();
+  const bool logDue =
+      view == View::Log && halAudio.logRevision() != shownLogRevision && millis() - lastLogRefreshMs >= LOG_REFRESH_MS;
+  if (halAudio.revision() == shownRevision && !logDue) return;
+  if (refresh()) requestUpdate();
 }
 
 const char* BtHeadphonesActivity::headerTitle() const {
@@ -84,6 +100,8 @@ const char* BtHeadphonesActivity::headerTitle() const {
 
 void BtHeadphonesActivity::onBackButton() {
   if (view != View::Menu) {
+    // Leaving the scan without a pick: back to the saved output once it ends.
+    if (view == View::Scan) audiobook::applySavedOutput();
     showView(View::Menu);
     return;
   }
@@ -100,61 +118,22 @@ void BtHeadphonesActivity::showView(const View target) {
   requestUpdate();
 }
 
-void BtHeadphonesActivity::saveConnectedHeadset() {
-  auto& audio = SETTINGS.audio;
-  strncpy(audio.headsetAddress, pickedAddress, sizeof(audio.headsetAddress) - 1);
-  audio.headsetAddress[sizeof(audio.headsetAddress) - 1] = '\0';
-  audio.headsetName[0] = '\0';
-  for (size_t i = 0; i < halAudio.deviceCount(); i++) {
-    const auto& d = halAudio.device(i);
-    if (strcmp(d.address, pickedAddress) == 0) {
-      strncpy(audio.headsetName, d.name, sizeof(audio.headsetName) - 1);
-      audio.headsetName[sizeof(audio.headsetName) - 1] = '\0';
-    }
-  }
-  audio.output = audiobook::AudioSettings::OUTPUT_HEADPHONES;
-  SETTINGS.saveToFile();
-  pickedAddress[0] = '\0';
+void BtHeadphonesActivity::startScan() {
+  audiobook::scanForHeadphones();
+  showView(View::Scan);
 }
 
-void BtHeadphonesActivity::refresh() {
+bool BtHeadphonesActivity::refresh() {
   RenderLock lock(*this);
   shownRevision = halAudio.revision();
-  lastRepaintMs = millis();
+  shownLogRevision = halAudio.logRevision();
+  lastLogRefreshMs = millis();
   const auto& saved = SETTINGS.audio;
   const bool haveSaved = saved.headsetAddress[0] != '\0';
+  const bool onSaved =
+      haveSaved && headphonesSelected() && strcmp(halAudio.connectedAddress(), saved.headsetAddress) == 0;
 
-  if (!audioOpen) {
-    status = tr(STR_AUDIOBOOK_START_FAILED);
-  } else if (!headphonesSelected()) {
-    // The row's value already says Speaker.
-    if (halAudio.modeSettled()) {
-      status.clear();
-    } else {
-      status = tr(STR_AUDIOBOOK_SWITCHING);
-    }
-  } else {
-    // Headset mode is entered by the connect or scan that needs it.
-    switch (halAudio.link()) {
-      case HalAudio::Link::Connected:
-        status = haveSaved && strcmp(halAudio.connectedAddress(), saved.headsetAddress) == 0 && saved.headsetName[0]
-                     ? saved.headsetName
-                     : halAudio.connectedAddress();
-        break;
-      case HalAudio::Link::Connecting:
-        status = tr(STR_CONNECTING);
-        break;
-      case HalAudio::Link::Scanning:
-        status = tr(STR_SCANNING);
-        break;
-      case HalAudio::Link::Failed:
-        status = tr(STR_CONNECTION_FAILED);
-        break;
-      case HalAudio::Link::None:
-        status = haveSaved ? tr(STR_AUDIOBOOK_NOT_CONNECTED) : tr(STR_AUDIOBOOK_PICK_HEADPHONES);
-        break;
-    }
-  }
+  status = audioOpen ? audiobook::outputStatus() : tr(STR_AUDIOBOOK_START_FAILED);
 
   // Labels first: the rows point into them.
   labels.clear();
@@ -208,10 +187,22 @@ void BtHeadphonesActivity::refresh() {
       auto& output = add(tr(STR_AUDIOBOOK_OUTPUT), static_cast<int16_t>(MenuRow::Output), audioOpen && !scanning);
       output.value = headphonesSelected() ? tr(STR_AUDIOBOOK_HEADPHONES) : tr(STR_AUDIOBOOK_SPEAKER);
       output.subtitle = status.empty() ? nullptr : status.c_str();
-      add(tr(STR_AUDIOBOOK_SCAN), static_cast<int16_t>(MenuRow::Scan), audioOpen && headphonesSelected() && !busy);
+      // Tapping the saved headphones connects them; Forget has its own row.
       auto& savedRow = add(haveSaved ? labels.back().c_str() : tr(STR_AUDIOBOOK_SAVED_HEADPHONES),
-                           static_cast<int16_t>(MenuRow::Saved), haveSaved && !scanning);
-      savedRow.value = haveSaved ? tr(STR_FORGET_BUTTON) : tr(STR_NOT_SET);
+                           static_cast<int16_t>(MenuRow::Saved), audioOpen && haveSaved && !busy);
+      if (!haveSaved) {
+        savedRow.value = tr(STR_NOT_SET);
+      } else if (onSaved && halAudio.headsetConnected()) {
+        savedRow.value = tr(STR_AUDIOBOOK_CONNECTED);
+      } else if (onSaved && halAudio.link() == HalAudio::Link::Connecting) {
+        savedRow.value = tr(STR_CONNECTING);
+      } else {
+        savedRow.value = tr(STR_CONNECT);
+      }
+      if (haveSaved) {
+        add(tr(STR_AUDIOBOOK_FORGET_HEADPHONES), static_cast<int16_t>(MenuRow::Forget), audioOpen && !scanning);
+      }
+      add(tr(STR_AUDIOBOOK_SCAN), static_cast<int16_t>(MenuRow::Scan), audioOpen && !busy);
       // A playing book owns the stream; the tone would not start.
       add(tr(STR_AUDIOBOOK_TEST_SOUND), static_cast<int16_t>(MenuRow::TestSound),
           audioOpen && outputSetUp && !toneWaiting && !halAudio.isStreaming());
@@ -233,35 +224,38 @@ void BtHeadphonesActivity::refresh() {
     }
   }
   if (nav.selected >= static_cast<int>(rows.size())) nav.selected = static_cast<int>(rows.size()) - 1;
+  const uint32_t signature = rowSignature(rows);
+  const bool changed = signature != shownSignature;
+  shownSignature = signature;
+  return changed;
 }
 
 void BtHeadphonesActivity::activateMenu(const int code) {
-  auto& audio = SETTINGS.audio;
+  // Rows are drawn before a scan or connect began; these checks are current.
+  const bool scanning = halAudio.link() == HalAudio::Link::Scanning;
   switch (static_cast<MenuRow>(code)) {
-    case MenuRow::Output: {
-      if (halAudio.link() == HalAudio::Link::Scanning) break;  // drawn before the scan began
-      const bool toHeadphones = !headphonesSelected();
-      audio.output =
-          toHeadphones ? audiobook::AudioSettings::OUTPUT_HEADPHONES : audiobook::AudioSettings::OUTPUT_SPEAKER;
-      SETTINGS.saveToFile();
-      halAudio.selectOutput(toHeadphones ? HalAudio::Output::Headphones : HalAudio::Output::Speaker,
-                            audio.headsetAddress);
+    case MenuRow::Output:
+      if (scanning) break;
+      if (headphonesSelected()) {
+        audiobook::chooseOutput(HalAudio::Output::Speaker);
+      } else if (SETTINGS.audio.headsetAddress[0] == '\0') {
+        startScan();  // nothing to connect to yet
+        return;
+      } else {
+        audiobook::chooseOutput(HalAudio::Output::Headphones);
+      }
       break;
-    }
-    case MenuRow::Scan:
-      halAudio.startScan();
-      showView(View::Scan);
-      return;
     case MenuRow::Saved:
-      if (halAudio.link() == HalAudio::Link::Scanning) break;
-      audio.headsetAddress[0] = '\0';
-      audio.headsetName[0] = '\0';
-      // Back to the speaker, as the reference firmware does. That also drops
-      // the headset link, so the headphones can be found by a scan again.
-      audio.output = audiobook::AudioSettings::OUTPUT_SPEAKER;
-      SETTINGS.saveToFile();
-      halAudio.selectOutput(HalAudio::Output::Speaker, nullptr);
+      // Connects unless that headset is already linked or connecting.
+      if (!halAudio.isBusy()) audiobook::chooseOutput(HalAudio::Output::Headphones);
       break;
+    case MenuRow::Forget:
+      if (!scanning) audiobook::forgetHeadphones();
+      break;
+    case MenuRow::Scan:
+      if (halAudio.isBusy()) break;
+      startScan();
+      return;
     case MenuRow::TestSound:
       // loop() plays it once a check finds the module clocking the bus.
       halAudio.resetWake();
@@ -288,10 +282,10 @@ void BtHeadphonesActivity::activateIndex(const int index) {
   }
   if (view == View::Log) return;
   if (code == SCAN_AGAIN) {
-    halAudio.startScan();
+    audiobook::scanForHeadphones();
   } else if (code >= 0 && static_cast<size_t>(code) < halAudio.deviceCount()) {
-    strncpy(pickedAddress, halAudio.device(code).address, sizeof(pickedAddress) - 1);
-    halAudio.connect(pickedAddress);
+    // Saved with the output set to headphones once it connects.
+    audiobook::pairWith(halAudio.device(code).address);
     showView(View::Menu);
     return;
   }

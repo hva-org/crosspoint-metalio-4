@@ -5,9 +5,13 @@
 // sends it to a Bluetooth headset (mode 2). It is driven by text commands on
 // UART2 and stays powered, in its last mode, while the board runs.
 //
+// begin() opens UART2 once and it stays open until the board resets, so the
+// module's replies (a headset dropping out or reconnecting) are read behind
+// every screen and queued commands go out without anyone waiting for them.
+//
 // What the device showed:
-// - Speaker sessions open the bus through the SDK, which sends the speaker
-//   commands on every open; the speaker only played with that.
+// - The speaker played when the speaker commands were sent again for each
+//   book; renewSpeakerMode() does that without blocking.
 // - Headset commands follow a firmware that drives this module: no mode
 //   command it does not need, and no step waits for a reply it may not send.
 // - The I2S channels are created fresh for every stream, while the module
@@ -17,7 +21,7 @@
 //   clocks the bus; if not, wakeOutput() tries the commands that may restart
 //   it, checking after each one.
 //
-// Threads: control calls (open/close, output, scan, connect, poll, start/stop
+// Threads: control calls (begin, output, scan, connect, poll, start/stop
 // stream, wake) belong to the main loop. write() belongs to one audio task,
 // and stopStream() must not run while that task is inside write().
 
@@ -55,34 +59,39 @@ class HalAudio {
   };
   static constexpr size_t LOG_SIZE = 12;
 
-  // Counted: each acquire() needs one release(). For the speaker the first
-  // blocks about 700 ms while the SDK opens the bus with the speaker commands;
-  // for headphones it sends nothing, and selectOutput() does what is needed.
-  bool acquire(Output wanted);
-  // The last release finishes a mode switch whose role command already went
-  // out (up to 700 ms) and the music commands, drops anything else queued,
-  // then frees the bus. The module keeps its mode and headset link.
-  void release();
-  bool isOpen() const { return users_ > 0; }
+  // Opens UART2 and takes the audio bus, without blocking or sending a
+  // command. Later calls return at once.
+  bool begin();
+  bool isOpen() const { return open_; }
 
   // Puts the module in the mode for `output`, if it is not already. For
-  // headphones with a saved address, also connects to that headset.
+  // headphones with an address, also connects to that headset unless it is
+  // linked or a connect is running. Choosing the current output again sends
+  // nothing, so it never breaks a working link.
   void selectOutput(Output output, const char* headsetAddress);
   Output output() const { return output_; }
+  // Sends the speaker commands again (speaker output only), unless a switch
+  // to the speaker is already queued.
+  void renewSpeakerMode();
   // Headset mode, then a scan. Found devices are listed in device().
   void startScan();
-  // Headset mode if needed, then a connect to `address`.
+  // Headset mode if needed, then a connect to `address`. Nothing is sent
+  // while that headset is linked or connecting: a second AT+CONNECT drops the
+  // link, and its reply would send a second AT+PP=1, which pauses.
   void connect(const char* address);
 
   // Sends queued commands, parses module replies and runs wakeOutput().
   // Main loop only.
   void poll();
-  // Changes whenever something a screen shows changes.
+  // Changes when the output, mode, link, device list, clock check or stream
+  // changes; not for log lines.
   uint32_t revision() const { return revision_; }
+  // Changes with each Module Log line and received byte.
+  uint32_t logRevision() const { return logRevision_; }
 
   Link link() const { return link_; }
   // The module reported a headset link that has not failed or been replaced
-  // by a mode switch since. It outlives release().
+  // by a mode switch since.
   bool headsetConnected() const { return headsetConnected_; }
   // The headset is linked and the music commands have gone out.
   bool headsetReady() const;
@@ -101,6 +110,9 @@ class HalAudio {
   void wakeOutput();
   // Lets a failed wake run again.
   void resetWake();
+  // Stops a running wake. Whoever started one cancels it when it no longer
+  // waits, or its checks and reconnect would run behind other screens.
+  void cancelWake();
   bool clockConfirmed() const { return clockConfirmed_; }
   bool wakeFailed() const { return wake_ == Wake::Failed; }
   bool waking() const { return wake_ == Wake::Trying; }
@@ -119,6 +131,7 @@ class HalAudio {
   size_t deviceCount() const { return deviceCount_; }
   const Device& device(size_t index) const { return devices_[index]; }
   const char* connectedAddress() const { return connected_.address; }
+  const char* connectedName() const { return connected_.name; }
 
   // Creates the I2S channels and starts them. The amplifier is enabled only
   // for speaker output in speaker mode.
@@ -182,12 +195,13 @@ class HalAudio {
   void receiveLine(const char* line);
   void addLog(char direction, const char* text);
 
-  uint8_t users_ = 0;
   Output output_ = Output::Speaker;
   Link link_ = Link::None;
   uint32_t linkSinceMs_ = 0;
 
-  // Module state; it survives release() because the module stays powered.
+  bool open_ = false;
+
+  // What the driver knows of the module, which keeps its state while powered.
   ModuleMode moduleMode_ = ModuleMode::Unknown;
   ModuleMode queuedMode_ = ModuleMode::Unknown;  // after the queued commands
   uint32_t settledAtMs_ = 0;
@@ -197,6 +211,9 @@ class HalAudio {
   bool scanWaitsForMode_ = false;
   bool connectPending_ = false;  // our AT+CONNECT has no answer yet
   uint32_t musicSentMs_ = 0;     // AT+PP=1 sent for the current link; 0: not yet
+  // A switch to the speaker cut short a connect, whose reply may still come.
+  bool lateConnectWatch_ = false;
+  uint32_t lateConnectUntilMs_ = 0;
 
   bool clockConfirmed_ = false;  // a check passed and nothing changed since
   Clock lastClock_ = Clock::Unchecked;
@@ -221,6 +238,7 @@ class HalAudio {
   size_t deviceCount_ = 0;
   Device connected_;
   uint32_t revision_ = 0;
+  uint32_t logRevision_ = 0;
 
   std::atomic<bool> streaming_{false};
   std::atomic<bool> writing_{false};  // the audio task is inside write()

@@ -80,7 +80,8 @@ class AudiobookService {
   void setVolume(uint8_t volume);
 
   PlayerSnapshot snapshot() const;
-  // Changes with play state, chapter, track and problems (not every second).
+  // Changes with play state, chapter, track, problems and the output (not every
+  // second, nor when a pick renames the saved headphones).
   uint32_t revision() const { return revision_; }
 
   // Main-loop housekeeping: headphone link, track changes, end of book,
@@ -155,7 +156,8 @@ class AudiobookService {
   bool finished_ = false;
   bool waitingForOutput_ = false;
   unsigned long waitStartedMs_ = 0;
-  bool audioAcquired_ = false;
+  bool waitHeadphones_ = false;   // the output waited for
+  bool shownHeadphones_ = false;  // the output when revision_ last moved
   bool settingsUnsaved_ = false;
   size_t shownChapter_ = 0;
   PlaybackProblem shownProblem_ = PlaybackProblem::None;

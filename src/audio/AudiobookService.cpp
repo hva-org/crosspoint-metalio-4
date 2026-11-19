@@ -266,8 +266,6 @@ bool AudiobookService::open(const std::string& path) {
       LOG_ERR("ABK", "Earlier playback tasks are still running");
       return false;
     }
-    if (audioAcquired_) releaseOutput();
-    audioAcquired_ = false;
     releaseBuffers();
     forgetBook();
     tasksStuck_ = false;
@@ -278,12 +276,13 @@ bool AudiobookService::open(const std::string& path) {
     forgetBook();
     return false;
   }
-  audioAcquired_ = acquireOutput();
-  if (!audioAcquired_) {
+  if (!ensureOutput()) {
     releaseBuffers();
     forgetBook();
     return false;
   }
+  // The speaker played when its commands went out again for each book.
+  halAudio.renewSpeakerMode();
 
   speedIndex_ = SETTINGS.audio.speedIndex;
   volume_ = SETTINGS.audio.volume;
@@ -311,8 +310,6 @@ bool AudiobookService::open(const std::string& path) {
       tasksStuck_ = true;
       return false;
     }
-    releaseOutput();
-    audioAcquired_ = false;
     releaseBuffers();
     forgetBook();
     return false;
@@ -334,6 +331,7 @@ bool AudiobookService::open(const std::string& path) {
   open_ = true;
   loadTrack(track, position);
   shownChapter_ = currentChapter();
+  shownHeadphones_ = halAudio.output() == HalAudio::Output::Headphones;
   lastSaveMs_ = millis();
   // One Recents entry per book: a folder book is listed by its first track.
   RECENT_BOOKS.addBook(trackFolder_.empty() ? openedPath_ : trackPath(0), title_, "", "");
@@ -359,6 +357,7 @@ bool AudiobookService::stopTasks() {
 
 void AudiobookService::close() {
   if (!open_) return;
+  halAudio.cancelWake();  // also one still running after a timed-out wait
   waitingForOutput_ = false;
   stopPlayback();
   savePosition();
@@ -366,13 +365,11 @@ void AudiobookService::close() {
   open_ = false;
   revision_++;
   if (!stopTasks()) {
-    // A task stuck in SD I/O still uses the buffers, the track names and the
-    // audio bus; open() frees them once it has gone.
+    // A task stuck in SD I/O still uses the buffers and the track names;
+    // open() frees them once it has gone.
     tasksStuck_ = true;
     return;
   }
-  if (audioAcquired_) releaseOutput();
-  audioAcquired_ = false;
   releaseBuffers();
   forgetBook();
 }
@@ -449,11 +446,13 @@ void AudiobookService::waitForOutput() {
   }
   waitingForOutput_ = true;
   waitStartedMs_ = millis();
+  waitHeadphones_ = halAudio.output() == HalAudio::Output::Headphones;
   revision_++;
 }
 
 void AudiobookService::pause() {
   if (!open_ || (!playing_ && !waitingForOutput_)) return;
+  if (waitingForOutput_) halAudio.cancelWake();  // its checks would go on behind other screens
   waitingForOutput_ = false;
   stopPlayback();
   savePosition();
@@ -573,7 +572,19 @@ void AudiobookService::savePosition() {
 
 void AudiobookService::tick() {
   if (!open_) return;
+  // A scan takes the module away from either output; waiting through it would
+  // end in an output error.
+  if ((playing_ || waitingForOutput_) && halAudio.link() == HalAudio::Link::Scanning) pause();
   const bool headphones = halAudio.output() == HalAudio::Output::Headphones;
+  if (headphones != shownHeadphones_) {
+    shownHeadphones_ = headphones;
+    revision_++;  // screens show the output, even of a paused book
+  }
+  if (waitingForOutput_ && headphones != waitHeadphones_) {
+    // A switch made while waiting gets the full wait for the new output.
+    waitHeadphones_ = headphones;
+    waitStartedMs_ = millis();
+  }
   if (waitingForOutput_) {
     const bool linkGone = headphones && !halAudio.waking() &&
                           (halAudio.link() == HalAudio::Link::Failed || halAudio.link() == HalAudio::Link::None);
@@ -583,6 +594,7 @@ void AudiobookService::tick() {
       startPlayback();
     } else if (halAudio.wakeFailed() || linkGone || millis() - waitStartedMs_ > LINK_WAIT_MS) {
       // No clock after every step, failed, or nothing to connect to.
+      halAudio.cancelWake();
       waitingForOutput_ = false;
       revision_++;
       reportProblem(PlaybackProblem::Output, generation_);

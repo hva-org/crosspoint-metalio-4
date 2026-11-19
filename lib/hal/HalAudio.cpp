@@ -83,73 +83,26 @@ bool HalAudio::openBus() {
   return true;
 }
 
-bool HalAudio::acquire(const Output wanted) {
-  if (users_ > 0) {
-    users_++;
-    return true;
-  }
-  bool opened = false;
-  if (metalio::audioBus().tx || wanted == Output::Headphones) {
-    opened = openBus() && metalio::acquireAudio(this, false);
-  } else {
-    // The SDK's open: AT+RX=2, 700 ms, AT+MODE=1, then the I2S bus. Early
-    // builds opened every speaker session this way and the speaker played;
-    // without these commands on reopening, the module gave no clock.
-    opened = metalio::acquireAudio(this, false);
-    if (opened) {
-      moduleMode_ = ModuleMode::Speaker;
-      headsetConnected_ = false;
-      lastModeSentMs_ = millis();
-      settledAtMs_ = lastModeSentMs_ + btmod::SPEAKER_MODE_SETTLE_MS;
-      settleShown_ = false;
-      addLog('>', "AT+RX=2, AT+MODE=1 (SDK)");
-    }
-  }
-  if (!opened) {
+bool HalAudio::begin() {
+  // Its own flag, not bus.tx: the channels are deleted between streams.
+  if (open_) return true;
+  // With the bus open, acquireAudio() only takes ownership; it would
+  // otherwise send the speaker commands and block for 700 ms.
+  if (!openBus() || !metalio::acquireAudio(this, false)) {
     LOG_ERR("AUD", "Audio bus unavailable");
     if (!metalio::audioBus().speaker && !metalio::audioBus().microphone) metalio::destroyAudioBus();
     return false;
   }
   // The channels are created again for each stream; none are held while idle.
   closeI2s();
-  users_ = 1;
-  link_ = headsetConnected_ ? Link::Connected : Link::None;
+  open_ = true;
+  link_ = Link::None;
   clearQueue();
   deviceCount_ = 0;
   forgetClock();
   wake_ = Wake::Idle;
   revision_++;
   return true;
-}
-
-void HalAudio::release() {
-  if (users_ == 0 || --users_ > 0) return;
-  stopStream();
-  // Finish a mode switch whose role command already went out, so the module
-  // is not left between modes, and the music commands that complete a link.
-  // A switch not yet started, a scan or a connect is dropped.
-  bool head = true;
-  while (stepCount_ > 0) {
-    const Action action = steps_[stepHead_].action;
-    const bool modeAfterRole = head && (action == Action::SpeakerMode || action == Action::HeadsetMode ||
-                                        action == Action::HeadsetModeForScan);
-    head = false;
-    if (!modeAfterRole && action != Action::MusicProfile && action != Action::MusicStart) {
-      if (action == Action::Role) queuedMode_ = moduleMode_;
-      stepHead_ = (stepHead_ + 1) % MAX_STEPS;
-      stepCount_--;
-      continue;
-    }
-    const int32_t wait = static_cast<int32_t>(nextStepMs_ - millis());
-    if (wait > 0) delay(static_cast<uint32_t>(wait));
-    sendStep();
-  }
-  connectPending_ = false;
-  wake_ = Wake::Idle;
-  forgetClock();
-  metalio::releaseAudio(this, false);
-  if (link_ != Link::Connected) link_ = Link::None;
-  revision_++;
 }
 
 bool HalAudio::modeSettled() const {
@@ -184,7 +137,7 @@ void HalAudio::addLog(const char direction, const char* text) {
   entry.text[n] = '\0';
   logHead_ = (logHead_ + 1) % LOG_SIZE;
   if (logCount_ < LOG_SIZE) logCount_++;
-  revision_++;
+  logRevision_++;
 }
 
 void HalAudio::receiveLine(const char* line) {
@@ -245,11 +198,21 @@ void HalAudio::queueHeadsetMode(const bool forScan) {
 }
 
 void HalAudio::selectOutput(const Output output, const char* headsetAddress) {
-  if (users_ == 0) return;
+  if (!open_) return;
+  if (output == output_) {
+    // Clearing the queue here could drop a queued AT+PP=1 or a mode switch.
+    if (output == Output::Speaker && queuedMode_ == ModuleMode::Speaker) return;
+    // Linked, connecting (ours or the module's own retry), or scanning.
+    if (output == Output::Headphones && (headsetConnected_ || isBusy() || link_ == Link::Connecting)) return;
+  }
+  // A connect still running may answer after the switch to the speaker.
+  const bool connectRunning = connectPending_ || link_ == Link::Connecting;
   clearQueue();
   output_ = output;
   wake_ = Wake::Idle;
   forgetClock();
+  lateConnectWatch_ = output == Output::Speaker && connectRunning;
+  lateConnectUntilMs_ = millis() + btmod::CONNECT_TIMEOUT_MS;
   if (output == Output::Speaker) {
     setLink(Link::None);
     if (moduleMode_ != ModuleMode::Speaker) {
@@ -270,9 +233,21 @@ void HalAudio::selectOutput(const Output output, const char* headsetAddress) {
   revision_++;
 }
 
+void HalAudio::renewSpeakerMode() {
+  if (!open_ || output_ != Output::Speaker) return;
+  // A switch to the speaker still queued sends these commands anyway.
+  if (queuedMode_ == ModuleMode::Speaker && moduleMode_ != ModuleMode::Speaker) return;
+  clearQueue();
+  moduleMode_ = ModuleMode::Unknown;
+  queuedMode_ = ModuleMode::Unknown;
+  forgetClock();
+  queueSpeakerMode();
+  revision_++;
+}
+
 void HalAudio::startScan() {
   // One scan or connect at a time, as in the reference firmware.
-  if (users_ == 0 || output_ != Output::Headphones || isBusy()) return;
+  if (!open_ || output_ != Output::Headphones || isBusy()) return;
   clearQueue();
   wake_ = Wake::Idle;
   deviceCount_ = 0;
@@ -285,9 +260,10 @@ void HalAudio::startScan() {
 
 void HalAudio::connect(const char* address) {
   char command[32];
-  if (users_ == 0 || output_ != Output::Headphones || isBusy() ||
+  if (!open_ || output_ != Output::Headphones || isBusy() ||
       btmod::formatConnect(address, command, sizeof(command)) == 0)
     return;
+  if ((headsetConnected_ || link_ == Link::Connecting) && strcmp(connected_.address, address) == 0) return;
   if (queuedMode_ != ModuleMode::Headset) queueHeadsetMode(false);
   headsetConnected_ = false;
   musicSentMs_ = 0;
@@ -401,9 +377,18 @@ void HalAudio::handle(const btmod::Event& event) {
       connectPending_ = false;
       if (headsetConnected_) break;  // AT+PP=1 toggles: one per link, or it pauses
       if (output_ != Output::Headphones) {
-        // A connect sent before the user chose the speaker; the queued
-        // speaker switch drops this link.
-        addLog('!', "late connect ignored");
+        // A connect sent before the user chose the speaker. A speaker switch
+        // still queued drops this link; one already sent may not have, so the
+        // module could be sending audio to the headset: switch again, once.
+        // Other links in speaker mode do not repeat the switch.
+        const bool expected = lateConnectWatch_ && static_cast<int32_t>(millis() - lateConnectUntilMs_) < 0;
+        lateConnectWatch_ = false;
+        if (expected && moduleMode_ == ModuleMode::Speaker) {
+          addLog('!', "late connect: speaker again");
+          renewSpeakerMode();
+        } else {
+          addLog('!', "late connect ignored");
+        }
         break;
       }
       // A late reply to an earlier connect does not end a running scan.
@@ -433,7 +418,7 @@ void HalAudio::handle(const btmod::Event& event) {
 }
 
 void HalAudio::poll() {
-  if (users_ == 0) return;
+  if (!open_) return;
   auto& uart = metalio::audioBus().uart;
   const uint32_t now = millis();
   const uint32_t bytesBefore = rxBytes_;
@@ -443,7 +428,7 @@ void HalAudio::poll() {
     if (reader_.feed(static_cast<char>(uart.read()))) receiveLine(reader_.line());
   }
   if (reader_.hasPartial() && now - lastRxMs_ > PARTIAL_LINE_MS && reader_.flush()) receiveLine(reader_.line());
-  if (rxBytes_ != bytesBefore) revision_++;  // the Module Log counts bytes, even of dropped lines
+  if (rxBytes_ != bytesBefore) logRevision_++;  // the Module Log counts bytes, even of dropped lines
 
   if (stepCount_ > 0 && static_cast<int32_t>(now - nextStepMs_) >= 0) sendStep();
   if (!settleShown_ && static_cast<int32_t>(now - settledAtMs_) >= 0) {
@@ -468,7 +453,7 @@ void HalAudio::poll() {
 }
 
 void HalAudio::wakeOutput() {
-  if (users_ == 0 || streaming_.load() || clockConfirmed() || wake_ == Wake::Trying) return;
+  if (!open_ || streaming_.load() || clockConfirmed() || wake_ == Wake::Trying) return;
   wake_ = Wake::Trying;
   wakeStep_ = 0;  // step 0 only checks
   wakeCheckAtMs_ = millis();
@@ -480,8 +465,14 @@ void HalAudio::resetWake() {
   if (wake_ == Wake::Failed) wake_ = Wake::Idle;
 }
 
+void HalAudio::cancelWake() {
+  if (wake_ == Wake::Idle) return;
+  wake_ = Wake::Idle;
+  revision_++;
+}
+
 bool HalAudio::probeClock() {
-  if (users_ == 0 || streaming_.load()) return false;
+  if (!open_ || streaming_.load()) return false;
   closeI2s();
   if (!openI2s() || !metalio::startAudio(this, false)) {
     closeI2s();
@@ -531,14 +522,13 @@ void HalAudio::pollWake(const uint32_t now) {
   wakeCheckAtMs_ = now + WAKE_CHECK_MS;
   wakeDeadlineMs_ = now + WAKE_READY_MS;
   if (!headphones) {
+    // Sending the speaker commands again is what restored the clock on the
+    // device; a later check waits once more before giving up.
     if (wakeStep_ == 1) {
-      addLog('!', "no clock: waiting");
-    } else if (wakeStep_ == 2) {
       addLog('!', "no clock: speaker mode again");
-      clearQueue();
-      moduleMode_ = ModuleMode::Unknown;
-      queuedMode_ = ModuleMode::Unknown;
-      queueSpeakerMode();
+      renewSpeakerMode();
+    } else if (wakeStep_ == 2) {
+      addLog('!', "no clock: waiting");
     } else {
       addLog('!', "no clock after all steps");
       wake_ = Wake::Failed;
@@ -575,7 +565,7 @@ void HalAudio::pollWake(const uint32_t now) {
 }
 
 bool HalAudio::startStream() {
-  if (users_ == 0) return false;
+  if (!open_) return false;
   if (streaming_.load()) return true;
   // Fresh channels for every stream, created while the module clocks in its
   // current mode.
@@ -644,7 +634,7 @@ size_t HalAudio::write(const int16_t* samples, const size_t count, const uint8_t
 }
 
 bool HalAudio::playTestTone(const uint32_t durationMs, const uint8_t volume) {
-  if (users_ == 0 || streaming_.load() || !startStream()) return false;
+  if (!open_ || streaming_.load() || !startStream()) return false;
   constexpr float TONE_HZ = 1000.0f;
   int16_t block[WRITE_FRAMES];
   const uint32_t total = SAMPLE_RATE * durationMs / 1000;

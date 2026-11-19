@@ -177,7 +177,7 @@ static void armSilentReboot(const uint32_t target) {
 static void silentRestartTo(const uint32_t target, const char* targetName) {
   if (deepSleepInProgress) return;  // sleeping supersedes the heap-defrag reboot
 #if CROSSPOINT_AUDIOBOOK
-  AUDIOBOOK.close();  // save the position and free the audio bus
+  AUDIOBOOK.close();  // save the position and stop playback
 #endif
   armSilentReboot(target);
   LOG_DBG("MAIN", "Silent restart (target=%s)", targetName);
@@ -906,7 +906,7 @@ void loop() {
   scene.wifiOn = WiFi.getMode() != WIFI_MODE_NULL;
   const bool remoteActed = bleturner::tick(scene);
 #if CROSSPOINT_AUDIOBOOK
-  audiobook::tickOutput();
+  audiobook::tickOutput(!scene.storageBusy);
   AUDIOBOOK.tick();
 #endif
 #if CROSSPOINT_SD_LOG

@@ -12,11 +12,11 @@
 #include <initializer_list>
 #include <utility>
 
-#include "CrossPointSettings.h"
 #include "I18nKeys.h"
 #include "MappedInputManager.h"
 #include "activities/audio/AudiobookChapterListActivity.h"
 #include "activities/settings/BtHeadphonesActivity.h"
+#include "audio/AudioOutput.h"
 #include "components/UITheme.h"
 
 namespace fui = freeink::ui;
@@ -75,19 +75,7 @@ void AudiobookPlayerActivity::refresh() {
     snprintf(timeLine, sizeof(timeLine), tr(STR_AUDIOBOOK_MINUTES), elapsedMin);
   }
 
-  using audiobook::PlaybackProblem;
-  const bool headphones = halAudio.output() == HalAudio::Output::Headphones;
-  const char* waiting = headphones ? tr(STR_AUDIOBOOK_CONNECTING_HEADPHONES) : tr(STR_AUDIOBOOK_SWITCHING);
-  const char* state = shown.problem == PlaybackProblem::Track    ? tr(STR_AUDIOBOOK_TRACK_FAILED)
-                      : shown.problem == PlaybackProblem::Output ? tr(STR_AUDIOBOOK_NO_OUTPUT)
-                      : shown.waitingForOutput                   ? waiting
-                      : shown.finished                           ? tr(STR_AUDIOBOOK_FINISHED)
-                      : shown.playing                            ? tr(STR_AUDIOBOOK_PLAYING)
-                                                                 : tr(STR_AUDIOBOOK_PAUSED);
-  const char* output = !headphones                             ? tr(STR_AUDIOBOOK_SPEAKER)
-                       : SETTINGS.audio.headsetName[0] != '\0' ? SETTINGS.audio.headsetName
-                                                               : tr(STR_AUDIOBOOK_HEADPHONES);
-  snprintf(statusLine, sizeof(statusLine), "%s - %s", state, output);
+  snprintf(statusLine, sizeof(statusLine), "%s - %s", audiobook::playbackStateText(shown), audiobook::outputName());
   snprintf(speedLabel, sizeof(speedLabel), tr(STR_AUDIOBOOK_SPEED_VALUE),
            static_cast<double>(audiobook::playbackSpeed(shown.speedIndex)));
   snprintf(volumeLabel, sizeof(volumeLabel), tr(STR_AUDIOBOOK_VOLUME_VALUE), static_cast<unsigned>(shown.volume));

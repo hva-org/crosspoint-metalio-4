@@ -11,9 +11,10 @@
 
 class MappedInputManager;
 
-// Audiobook output: speaker or Bluetooth headphones, scanning, picking and
-// forgetting headphones, a test sound and a log of the module's replies. The audio module belongs to
-// HalAudio; this screen asks it and saves the user's choice.
+// Audiobook output: speaker or Bluetooth headphones, connecting the saved
+// headphones, scanning, picking and forgetting headphones, a test sound and a
+// log of the module's replies. The choice and picks go through AudioOutput,
+// which keeps them when this screen closes.
 class BtHeadphonesActivity final : public UiListActivity {
  public:
   explicit BtHeadphonesActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
@@ -32,18 +33,20 @@ class BtHeadphonesActivity final : public UiListActivity {
 
   enum class View { Menu, Scan, Log };
   void showView(View target);
-  void refresh();
+  void startScan();
+  // Rebuilds the rows; true when they differ from the ones last drawn.
+  bool refresh();
   void activateMenu(int code);
-  void saveConnectedHeadset();
 
   View view = View::Menu;
   bool audioOpen = false;
   uint32_t shownRevision = 0;
-  unsigned long lastRepaintMs = 0;
+  uint32_t shownLogRevision = 0;
+  uint32_t shownSignature = 0;
+  unsigned long lastLogRefreshMs = 0;
   // Test Sound waits for HalAudio::wakeOutput() to find the module's clock.
   bool toneWaiting = false;
   unsigned long toneSinceMs = 0;
-  char pickedAddress[13] = {};
 
   // Written on the main loop under the render lock, read by buildScreen.
   std::vector<freeink::ui::ListItem> rows;
