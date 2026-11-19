@@ -20,6 +20,17 @@
 #include "components/icons/readerToolbarIcons.h"
 #include "util/SlideSwitch.h"
 
+#if CROSSPOINT_AUDIOBOOK
+#include <HalAudio.h>
+#include <Logging.h>
+#include <Memory.h>
+
+#include "I18nKeys.h"
+#include "activities/settings/BtHeadphonesActivity.h"
+#include "audio/AudioOutput.h"
+#include "audio/AudiobookService.h"
+#endif
+
 namespace fui = freeink::ui;
 
 namespace {
@@ -29,6 +40,13 @@ constexpr fui::ActionId ACTION_TOGGLE = 3;
 constexpr fui::ActionId ACTION_BRIGHTNESS_STEP = 4;
 constexpr fui::ActionId ACTION_WARMTH_STEP = 5;
 constexpr fui::ActionId ACTION_TILE = 6;  // value = tile index
+#if CROSSPOINT_AUDIOBOOK
+constexpr fui::ActionId ACTION_VOLUME = 7;
+constexpr fui::ActionId ACTION_VOLUME_STEP = 8;
+constexpr fui::ActionId ACTION_AUDIO = 9;  // value = AudioControl
+enum class AudioControl : int16_t { Back30, PlayPause, Forward30, Output };
+constexpr int32_t SKIP_SECONDS = 30;
+#endif
 
 // iOS-style geometry. The panel is a card hanging from the top of the screen:
 // a grabber, full-width slider pills, then a row of quick-setting icons. The chrome
@@ -75,6 +93,12 @@ void FrontlightPanelActivity::onEnter() {
     touchModeRestore = SETTINGS.touchReaderControls;
   }
 
+#if CROSSPOINT_AUDIOBOOK
+  volume = SETTINGS.audio.volume;
+  volumeChanged = false;
+  refreshAudio();
+#endif
+
   resetUi();
   app.on(ACTION_BRIGHTNESS, &FrontlightPanelActivity::onBrightnessEvent, this);
   app.on(ACTION_WARMTH, &FrontlightPanelActivity::onWarmthEvent, this);
@@ -82,6 +106,13 @@ void FrontlightPanelActivity::onEnter() {
   app.on(ACTION_BRIGHTNESS_STEP, &FrontlightPanelActivity::onBrightnessStepEvent, this);
   app.on(ACTION_WARMTH_STEP, &FrontlightPanelActivity::onWarmthStepEvent, this);
   app.on(ACTION_TILE, &FrontlightPanelActivity::onTileEvent, this);
+#if CROSSPOINT_AUDIOBOOK
+  app.on(ACTION_VOLUME, &FrontlightPanelActivity::onVolumeEvent, this);
+  app.on(ACTION_VOLUME_STEP, &FrontlightPanelActivity::onVolumeStepEvent, this);
+  app.on(ACTION_AUDIO, &FrontlightPanelActivity::onAudioEvent, this);
+  // A dropped handler would leave its controls silently dead.
+  if (app.handlerOverflowed()) LOG_ERR("PANEL", "Too many UI action handlers");
+#endif
   app.setScreen(&FrontlightPanelActivity::panelScreen, this);
   requestUpdate();
 }
@@ -105,6 +136,9 @@ void FrontlightPanelActivity::persistLightSettings() {
 
 void FrontlightPanelActivity::onExit() {
   persistLightSettings();
+#if CROSSPOINT_AUDIOBOOK
+  if (volumeChanged) SETTINGS.saveToFile();
+#endif
   Activity::onExit();
 }
 
@@ -142,6 +176,102 @@ void FrontlightPanelActivity::onWarmthStepEvent(const fui::ActionEvent& event, v
 void FrontlightPanelActivity::onTileEvent(const fui::ActionEvent& event, void* user) {
   static_cast<FrontlightPanelActivity*>(user)->runTile(event.value);
 }
+
+#if CROSSPOINT_AUDIOBOOK
+void FrontlightPanelActivity::onVolumeEvent(const fui::ActionEvent& event, void* user) {
+  if (event.dragPermille < 0) return;
+  static_cast<FrontlightPanelActivity*>(user)->setVolume(percentFromPermille(event.dragPermille));
+}
+
+void FrontlightPanelActivity::onVolumeStepEvent(const fui::ActionEvent& event, void* user) {
+  auto* self = static_cast<FrontlightPanelActivity*>(user);
+  const int step = audiobook::AudioSettings::VOLUME_STEP;
+  self->setVolume(self->volume + (event.value > 0 ? step : -step));
+  self->requestUpdate();
+}
+
+void FrontlightPanelActivity::onAudioEvent(const fui::ActionEvent& event, void* user) {
+  static_cast<FrontlightPanelActivity*>(user)->runAudioControl(event.value);
+}
+
+void FrontlightPanelActivity::setVolume(const int value) {
+  const uint8_t next = static_cast<uint8_t>(value < 0 ? 0 : value > 100 ? 100 : value);
+  if (next == volume) return;
+  volume = next;
+  volumeChanged = true;
+  // Live while a book plays; saved when the panel closes.
+  if (AUDIOBOOK.isOpen()) {
+    AUDIOBOOK.setVolume(volume);
+  } else {
+    SETTINGS.audio.volume = volume;
+  }
+}
+
+void FrontlightPanelActivity::runAudioControl(const int control) {
+  switch (static_cast<AudioControl>(control)) {
+    case AudioControl::Back30:
+      AUDIOBOOK.seekBy(-SKIP_SECONDS);
+      break;
+    case AudioControl::PlayPause:
+      AUDIOBOOK.toggle();
+      break;
+    case AudioControl::Forward30:
+      AUDIOBOOK.seekBy(SKIP_SECONDS);
+      break;
+    case AudioControl::Output:
+      // As on the headphones screen: a scan holds the output until it ends.
+      if (halAudio.link() == HalAudio::Link::Scanning) return;
+      if (audiobook::currentOutput() == HalAudio::Output::Headphones) {
+        audiobook::chooseOutput(HalAudio::Output::Speaker);
+      } else if (SETTINGS.audio.headsetAddress[0] != '\0') {
+        // A playing book pauses and resumes on the new output by itself.
+        audiobook::chooseOutput(HalAudio::Output::Headphones);
+      } else {
+        // Nothing to connect to: pair first. The panel closes on the way back
+        // so the screen under it repaints whole.
+        app.clearTapFlash();
+        auto next = makeUniqueNoThrow<BtHeadphonesActivity>(renderer, mappedInput);
+        if (!next) {
+          LOG_ERR("PANEL", "OOM: BtHeadphonesActivity");
+          return;
+        }
+        startActivityForResult(std::move(next), [](const ActivityResult&) { finish(); });
+        return;
+      }
+      break;
+  }
+  refreshAudio();
+  requestUpdate();
+}
+
+bool FrontlightPanelActivity::refreshAudio() {
+  RenderLock lock(*this);
+  char status[sizeof(audioStatus)];
+  const bool bookOpen = AUDIOBOOK.isOpen();
+  const audiobook::PlayerSnapshot shown = AUDIOBOOK.snapshot();
+  const char* play = shown.playing || shown.waitingForOutput ? tr(STR_AUDIOBOOK_PAUSE) : tr(STR_AUDIOBOOK_PLAY);
+  const char* output = audiobook::currentOutput() == HalAudio::Output::Headphones ? tr(STR_AUDIOBOOK_HEADPHONES)
+                                                                                  : tr(STR_AUDIOBOOK_SPEAKER);
+  if (bookOpen && shown.open) {
+    char chapter[32];
+    snprintf(chapter, sizeof(chapter), tr(STR_AUDIOBOOK_CHAPTER_POSITION), static_cast<unsigned>(shown.chapter + 1),
+             static_cast<unsigned>(shown.chapterCount));
+    snprintf(status, sizeof(status), "%s - %s - %s", chapter, audiobook::playbackStateText(shown),
+             audiobook::outputName());
+  } else {
+    snprintf(status, sizeof(status), "%s", audiobook::outputStatus());
+  }
+  shownBookRevision = AUDIOBOOK.revision();
+  shownOutputRevision = halAudio.revision();
+  const bool changed =
+      bookOpen != audioBookOpen || play != playLabel || output != outputLabel || strcmp(status, audioStatus) != 0;
+  audioBookOpen = bookOpen;
+  playLabel = play;
+  outputLabel = output;
+  memcpy(audioStatus, status, sizeof(audioStatus));
+  return changed;
+}
+#endif
 
 void FrontlightPanelActivity::runTile(const int idx) {
   switch (idx) {
@@ -271,6 +401,27 @@ void FrontlightPanelActivity::loop() {
     close();
     return;
   }
+#if CROSSPOINT_AUDIOBOOK
+  // Up/Down are the volume keys on the Metalio.
+  if (mappedInput.wasPressed(MappedInputManager::Button::Up)) {
+    setVolume(volume + audiobook::AudioSettings::VOLUME_STEP);
+    requestUpdate();
+    return;
+  }
+  if (mappedInput.wasPressed(MappedInputManager::Button::Down)) {
+    setVolume(volume - audiobook::AudioSettings::VOLUME_STEP);
+    requestUpdate();
+    return;
+  }
+  if (!Frontlight.present() && AUDIOBOOK.isOpen() && mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+    runAudioControl(static_cast<int>(AudioControl::PlayPause));
+    return;
+  }
+  // Repaint for a changed play state or output, not for every module reply.
+  if ((AUDIOBOOK.revision() != shownBookRevision || halAudio.revision() != shownOutputRevision) && refreshAudio()) {
+    requestUpdate();
+  }
+#endif
   if (!Frontlight.present()) return;
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     if (!slideSwitchOwnsLight()) toggleLight();
@@ -299,6 +450,12 @@ int FrontlightPanelActivity::computePanelBottom() const {
     }
     y += tokens.spaceSm;
   }
+#if CROSSPOINT_AUDIOBOOK
+  // Mirrors buildAudioSection(): volume row, button row, status line.
+  y += lineHeight + tokens.spaceMd + kSliderRowHeight + 2 * tokens.spaceMd;
+  y += kQuickControlSize + tokens.spaceSm;
+  y += lineHeight + tokens.spaceMd;
+#endif
   // Icons are touch targets, so a buttons-only board gets no row and the
   // sheet is exactly the frontlight controls.
   if (mappedInput.hasTouch()) y += kQuickControlSize;
@@ -384,6 +541,9 @@ void FrontlightPanelActivity::buildPanelScreen(UiScreen& screen) {
     }
     screen.spacer(theme.spaceSm);
   }
+#if CROSSPOINT_AUDIOBOOK
+  buildAudioSection(screen);
+#endif
 
   // Match the reader toolbar's equal icon slots; the full slot is the touch target.
   if (mappedInput.hasTouch()) {
@@ -434,6 +594,49 @@ void FrontlightPanelActivity::buildPanelScreen(UiScreen& screen) {
     }
   }
 }
+
+#if CROSSPOINT_AUDIOBOOK
+void FrontlightPanelActivity::buildAudioSection(UiScreen& screen) {
+  const auto& theme = screen.theme();
+  // Its -/+ send one step; onVolumeStepEvent() scales it to VOLUME_STEP.
+  addSliderRow(screen, tr(STR_AUDIOBOOK_VOLUME), volume, ACTION_VOLUME, ACTION_VOLUME_STEP, /*showToggle=*/false);
+
+  // Play/pause and skips need a book; the output can be set without one.
+  struct Item {
+    AudioControl control;
+    const char* label;
+  };
+  const Item book[] = {{AudioControl::Back30, tr(STR_AUDIOBOOK_BACK_30)},
+                       {AudioControl::PlayPause, playLabel},
+                       {AudioControl::Forward30, tr(STR_AUDIOBOOK_FORWARD_30)},
+                       {AudioControl::Output, outputLabel}};
+  const Item* items = audioBookOpen ? book : book + 3;
+  const int count = audioBookOpen ? 4 : 1;
+  const int16_t gap = theme.spaceSm;
+  const fui::Rect band = screen.takeTop(kQuickControlSize, gap);
+  buttonProps.styles = theme.button;
+  buttonProps.styles.normal.border = fui::Paint::solid(fui::Color::Black);
+  buttonProps.styles.normal.borderWidth = 2;
+  buttonProps.text = theme.smallText;
+  buttonProps.radius = theme.controlRadius;
+  buttonProps.minTouchSize = theme.minTouchSize;
+  buttonProps.action = ACTION_AUDIO;
+  buttonProps.inputMask = fui::InputTouch;
+  for (int i = 0; i < count; i++) {
+    const int16_t left = static_cast<int16_t>(band.x + (band.width + gap) * i / count);
+    const int16_t right = static_cast<int16_t>(band.x + (band.width + gap) * (i + 1) / count - gap);
+    buttonProps.label = items[i].label;
+    buttonProps.value = static_cast<int16_t>(items[i].control);
+    screen.button(buttonProps, fui::Rect{left, band.y, static_cast<int16_t>(right - left), band.height});
+  }
+
+  auto style = theme.smallText;
+  style.align = fui::TextAlign::Center;
+  style.maxLines = 1;
+  const fui::Rect line = screen.takeTop(screen.target().lineHeight(style.font), theme.spaceMd);
+  if (audioStatus[0] != '\0') screen.target().text(line, audioStatus, style);
+}
+#endif
 
 void FrontlightPanelActivity::render(RenderLock&&) {
   panelBottom = computePanelBottom();

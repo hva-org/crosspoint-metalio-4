@@ -9,7 +9,9 @@
 // or a button bound to "Control Center" (iOS Control Center style): a grabber,
 // the frontlight brightness/warmth sliders (on boards with a light), and a row
 // of quick-setting icons — night mode, ghost-cleanup refresh, reading
-// orientation, reader touch controls, and Bluetooth. Enabled toggles have filled
+// orientation, reader touch controls, and Bluetooth. Audiobook builds add the
+// volume, the audio output and, while a book is open, play/pause and 30 s
+// skips above the icons. Enabled toggles have filled
 // rounded squares; all other controls are outlined. The grabber sits
 // along the panel's bottom edge, the edge the sheet is dragged from.
 class FrontlightPanelActivity final : public Activity, private UiAppHost {
@@ -39,6 +41,29 @@ class FrontlightPanelActivity final : public Activity, private UiAppHost {
 
   // SliderRowProps embeds a StyleSet, so keep it off the render stack.
   freeink::ui::SliderRowProps rowProps;
+
+#if CROSSPOINT_AUDIOBOOK
+  uint8_t volume = 0;
+  bool volumeChanged = false;
+  uint32_t shownBookRevision = 0;
+  uint32_t shownOutputRevision = 0;
+  // Written on the main loop under the render lock, read by buildAudioSection.
+  char audioStatus[96] = {};
+  const char* playLabel = nullptr;
+  const char* outputLabel = nullptr;
+  bool audioBookOpen = false;
+  // Also embeds a StyleSet.
+  freeink::ui::ButtonProps buttonProps;
+
+  static void onVolumeEvent(const freeink::ui::ActionEvent& event, void* user);
+  static void onVolumeStepEvent(const freeink::ui::ActionEvent& event, void* user);
+  static void onAudioEvent(const freeink::ui::ActionEvent& event, void* user);
+  void buildAudioSection(UiScreen& screen);
+  void setVolume(int value);
+  void runAudioControl(int control);
+  // Rebuilds the status line and button labels; true when they changed.
+  bool refreshAudio();
+#endif
 
   static void panelScreen(UiScreen& screen, void* user);
   static void onBrightnessEvent(const freeink::ui::ActionEvent& event, void* user);
