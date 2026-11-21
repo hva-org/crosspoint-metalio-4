@@ -61,6 +61,21 @@ double frequency(const std::vector<int16_t>& s, const uint32_t rate) {
 }
 }  // namespace
 
+TEST(PcmPipelineSpeed, SpeedStepsStopAtTheEnds) {
+  using audiobook::DEFAULT_SPEED_INDEX;
+  using audiobook::PLAYBACK_SPEED_COUNT;
+  using audiobook::steppedSpeedIndex;
+  EXPECT_EQ(steppedSpeedIndex(1, 1), 2);
+  EXPECT_EQ(steppedSpeedIndex(2, -1), 1);
+  // No wrap-around at either end.
+  EXPECT_EQ(steppedSpeedIndex(0, -1), 0);
+  EXPECT_EQ(steppedSpeedIndex(PLAYBACK_SPEED_COUNT - 1, 1), PLAYBACK_SPEED_COUNT - 1);
+  EXPECT_EQ(steppedSpeedIndex(0, 100), PLAYBACK_SPEED_COUNT - 1);
+  // A bad saved index steps from normal speed.
+  EXPECT_EQ(steppedSpeedIndex(200, 0), DEFAULT_SPEED_INDEX);
+  EXPECT_EQ(steppedSpeedIndex(200, 1), DEFAULT_SPEED_INDEX + 1);
+}
+
 TEST(PcmPipelineSpeed, OutputLengthScalesWithSpeed) {
   for (const float speed : audiobook::PLAYBACK_SPEEDS) {
     PcmPipeline pipeline;

@@ -41,6 +41,22 @@ struct ChapterMark {
 // must be sorted by (track, startMs). Returns 0 for an empty list.
 size_t chapterAt(const ChapterMark* chapters, size_t count, uint16_t track, uint64_t ms);
 
+// Where a slider at `permille` (0-1000) lands in a chapter `lengthMs` long,
+// from the chapter start. Stops 1 s before the end so a seek stays in the
+// chapter; 0 when the length is unknown.
+uint64_t chapterSeekOffsetMs(uint64_t lengthMs, int32_t permille);
+
+// Whole minutes for the chapter time labels. Elapsed rounds down and the
+// length up, and the time left is their difference, so both labels change
+// once a minute, together, and add up to the length. The time left can read
+// up to a minute high, never low. `left` is 0 while the length is unknown (0).
+struct ChapterMinutes {
+  uint32_t elapsed = 0;
+  uint32_t length = 0;
+  uint32_t left = 0;
+};
+ChapterMinutes chapterMinutes(uint64_t elapsedMs, uint64_t lengthMs);
+
 struct SavedPosition {
   uint16_t track = 0;
   uint32_t positionMs = 0;

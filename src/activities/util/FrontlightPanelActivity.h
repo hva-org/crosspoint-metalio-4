@@ -4,14 +4,21 @@
 #include "activities/Activity.h"
 #include "components/UiAppHost.h"
 #include "util/ButtonNavigator.h"
+#if CROSSPOINT_AUDIOBOOK
+#include <string>
+
+#include "audio/AudiobookService.h"
+#include "components/AudioControls.h"
+#endif
 
 // Top-anchored control center opened by a top-edge down-swipe, a status-bar tap,
 // or a button bound to "Control Center" (iOS Control Center style): a grabber,
 // the frontlight brightness/warmth sliders (on boards with a light), and a row
 // of quick-setting icons — night mode, ghost-cleanup refresh, reading
-// orientation, reader touch controls, and Bluetooth. Audiobook builds add the
-// volume, the audio output and, while a book is open, play/pause and 30 s
-// skips above the icons. Enabled toggles have filled
+// orientation, reader touch controls, and Bluetooth. Audiobook builds add,
+// above the icons, a card that opens the player, the chapter slider and
+// transport while a book is open, and the volume and audio output. Enabled
+// toggles have filled
 // rounded squares; all other controls are outlined. The grabber sits
 // along the panel's bottom edge, the edge the sheet is dragged from.
 class FrontlightPanelActivity final : public Activity, private UiAppHost {
@@ -47,22 +54,30 @@ class FrontlightPanelActivity final : public Activity, private UiAppHost {
   bool volumeChanged = false;
   uint32_t shownBookRevision = 0;
   uint32_t shownOutputRevision = 0;
+  // The newest audiobook in Recents that is still on the card, for the card
+  // while no book is open; empty when there is none. Found once, in onEnter().
+  std::string recentPath;
+  std::string recentTitle;
   // Written on the main loop under the render lock, read by buildAudioSection.
-  char audioStatus[96] = {};
-  const char* playLabel = nullptr;
-  const char* outputLabel = nullptr;
+  audiobook::PlayerSnapshot shown;
   bool audioBookOpen = false;
-  // Also embeds a StyleSet.
-  freeink::ui::ButtonProps buttonProps;
+  bool headphonesOut = false;
+  std::string cardTitle;
+  char cardLine[96] = {};
+  AudioControls::ChapterBar chapterBar;
+  // Holds the button props (a 324-byte StyleSet) off the render stack.
+  AudioControls audioControls;
 
-  static void onVolumeEvent(const freeink::ui::ActionEvent& event, void* user);
-  static void onVolumeStepEvent(const freeink::ui::ActionEvent& event, void* user);
   static void onAudioEvent(const freeink::ui::ActionEvent& event, void* user);
+  void findRecentAudiobook();
   void buildAudioSection(UiScreen& screen);
+  void buildCard(UiScreen& screen);
   void setVolume(int value);
-  void runAudioControl(int control);
-  // Rebuilds the status line and button labels; true when they changed.
-  bool refreshAudio();
+  void runAudioControl(int control, int16_t dragPermille);
+  // Rebuilds the card text and time labels; true when they changed. endDrag
+  // also ends a chapter drag and asks for a cleaning refresh, in the same
+  // locked step that takes the position.
+  bool refreshAudio(bool endDrag = false);
 #endif
 
   static void panelScreen(UiScreen& screen, void* user);

@@ -94,6 +94,10 @@ class ActivityManager {
   void goToBrowser();
   void goToPlugins();
   void goToReader(std::string path, bool allowFastInitialRefresh = false);
+#if CROSSPOINT_AUDIOBOOK
+  // autoPlay starts a book that was not open; the open book keeps its state.
+  void goToAudiobookPlayer(std::string path, bool autoPlay);
+#endif
   void goToSleep(bool fromTimeout = false);
   void goToBoot();
   void goToFullScreenMessage(std::string message, EpdFontFamily::Style style = EpdFontFamily::REGULAR);

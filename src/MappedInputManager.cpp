@@ -44,6 +44,9 @@ void MappedInputManager::update(const bool deferHomeButtonAction) const {
   }
   powerSleepFrame = false;
   powerSingleClickFrame = false;
+#if CROSSPOINT_AUDIOBOOK
+  audiobookToggleFrame = false;
+#endif
   const bool classifyPower =
       CrossPointSettings::hasPowerDoubleClick() && SETTINGS.doublePwrBtn != CrossPointSettings::IGNORE;
   if (classifyPower && !gpio.isPressed(HalGPIO::BTN_DOWN) && !powerButtonInput.suppressesHold() &&
@@ -86,6 +89,11 @@ void MappedInputManager::update(const bool deferHomeButtonAction) const {
         case CrossPointSettings::PWR_FRONTLIGHT:
           homeAction = HomeButtonAction::ToggleFrontlight;
           break;
+#if CROSSPOINT_AUDIOBOOK
+        case CrossPointSettings::PWR_AUDIOBOOK:
+          audiobookToggleFrame = true;
+          break;
+#endif
       }
     }
   } else {
@@ -104,6 +112,11 @@ void MappedInputManager::update(const bool deferHomeButtonAction) const {
       case CrossPointSettings::PWR_READER_MENU:
         homeAction = HomeButtonAction::ReaderMenu;
         break;
+#if CROSSPOINT_AUDIOBOOK
+      case CrossPointSettings::PWR_AUDIOBOOK:
+        audiobookToggleFrame = true;
+        break;
+#endif
       default:
         break;
     }
@@ -114,6 +127,16 @@ void MappedInputManager::update(const bool deferHomeButtonAction) const {
     powerSleepFrame = powerSleepFrame || deferredPowerSleepFrame;
     deferredPowerSleepFrame = false;
   }
+#if CROSSPOINT_AUDIOBOOK
+  // A click read by a transfer's own input loop plays or pauses once the main
+  // loop runs again, like sleep.
+  if (deferHomeButtonAction) {
+    deferredAudiobookToggleFrame = deferredAudiobookToggleFrame || audiobookToggleFrame;
+  } else {
+    audiobookToggleFrame = audiobookToggleFrame || deferredAudiobookToggleFrame;
+    deferredAudiobookToggleFrame = false;
+  }
+#endif
   if (deferHomeButtonAction) {
     // Keep the first action observed during a synchronous transfer. Home must
     // still be visible now so the transfer can cancel and unwind promptly.

@@ -20,6 +20,9 @@ inline constexpr uint8_t DEFAULT_SPEED_INDEX = 1;
 
 // Out-of-range indexes fall back to normal speed.
 float playbackSpeed(uint8_t index);
+// The speed `delta` steps from `index`, held at the slowest and fastest
+// (no wrap-around). An out-of-range index steps from normal speed.
+uint8_t steppedSpeedIndex(uint8_t index, int delta);
 
 class PcmPipeline {
  public:

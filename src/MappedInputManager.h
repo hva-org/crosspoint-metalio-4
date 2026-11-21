@@ -49,6 +49,10 @@ class MappedInputManager {
   // current action remains available for immediate Home cancellation.
   void update(bool deferHomeButtonAction = false) const;
   bool powerSleepClick() const { return powerSleepFrame; }
+#if CROSSPOINT_AUDIOBOOK
+  // This frame's power click carries the "Play/Pause Audiobook" action.
+  bool audiobookToggleClick() const { return audiobookToggleFrame; }
+#endif
   bool wasPowerSingleClick() const {
     return powerSingleClickFrame || (wasReleased(Button::Power) && wasShortPowerReleased());
   }
@@ -57,6 +61,10 @@ class MappedInputManager {
     powerSingleClickFrame = false;
     powerSleepFrame = false;
     deferredPowerSleepFrame = false;
+#if CROSSPOINT_AUDIOBOOK
+    audiobookToggleFrame = false;
+    deferredAudiobookToggleFrame = false;
+#endif
   }
   bool isPowerHeld() const {
 #ifdef SIMULATOR
@@ -187,6 +195,10 @@ class MappedInputManager {
   mutable bool powerSingleClickFrame = false;
   mutable bool powerSleepFrame = false;
   mutable bool deferredPowerSleepFrame = false;
+#if CROSSPOINT_AUDIOBOOK
+  mutable bool audiobookToggleFrame = false;
+  mutable bool deferredAudiobookToggleFrame = false;
+#endif
   mutable HomeButtonAction homeAction = HomeButtonAction::Ignore;
   mutable HomeButtonAction deferredHomeAction = HomeButtonAction::Ignore;
   mutable bool touchHeldOverrideValid = false;

@@ -26,9 +26,9 @@ class UiAppHost {
   // capacity-templated, so per-screen capacities each minted a fresh copy of
   // that code in flash. The wider interaction buffer costs ~300 bytes of RAM
   // per live host, bounded by the activity stack depth. The control panel's
-  // audio controls need three more action handlers in audiobook builds.
+  // audio controls need one more action handler in audiobook builds.
 #if CROSSPOINT_AUDIOBOOK
-  using UiApp = freeink::ui::FreeInkApp<24, 9>;
+  using UiApp = freeink::ui::FreeInkApp<24, 7>;
 #else
   using UiApp = freeink::ui::FreeInkApp<24, 6>;
 #endif

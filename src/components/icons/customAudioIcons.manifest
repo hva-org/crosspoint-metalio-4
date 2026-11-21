@@ -1,0 +1,13 @@
+# Manifest for src/components/icons/customAudioIcons.h (audiobook builds only).
+# The SVGs in src/components/icons/audio/ are Lucide icons with the shapes
+# filled (fill="currentColor"), which read better on e-ink. Regenerate with:
+#   python3 freeink-sdk/libs/assets/Icons/tools/gen_icons.py \
+#     --manifest src/components/icons/customAudioIcons.manifest \
+#     --svgdir src/components/icons/audio \
+#     --sizes 24,32,40,48 --out src/components/icons/customAudioIcons.h
+# then run ./bin/clang-format-fix -g.
+# Licenses and copyright notices: freeink-sdk/libs/assets/Icons/lucide/LICENSE.
+play_filled = play-filled
+pause_filled = pause-filled
+skip_back_filled = skip-back-filled
+skip_forward_filled = skip-forward-filled

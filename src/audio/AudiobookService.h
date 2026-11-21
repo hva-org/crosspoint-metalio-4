@@ -66,6 +66,8 @@ class AudiobookService {
   // True when deleting or renaming `path` (a file or folder) changes this book.
   bool isAffectedBy(const std::string& path) const;
 
+  // The path the open book was opened from.
+  const std::string& openedPath() const { return openedPath_; }
   const std::string& title() const { return title_; }
   const std::vector<ChapterTitle>& chapterTitles() const { return titles_; }
 
@@ -74,6 +76,9 @@ class AudiobookService {
   void toggle();
   void seekBy(int32_t seconds);
   void jumpToChapter(size_t index);
+  // Moves to `offsetMs` past the start of chapter `index` and saves it; see
+  // chapterSeekOffsetMs() for an offset that stays in the chapter.
+  void seekInChapter(size_t index, uint64_t offsetMs);
   void nextChapter();
   void previousChapter();
   void setSpeed(uint8_t index);
