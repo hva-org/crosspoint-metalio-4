@@ -180,6 +180,10 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
     PWR_SYNC = 8,
     PWR_READER_MENU = 9,
     PWR_FRONTLIGHT = 10,
+#if CROSSPOINT_AUDIOBOOK
+    // Other builds read it as out of range and fall back to Ignore.
+    PWR_AUDIOBOOK = 11,
+#endif
     SHORT_PWRBTN_COUNT
   };
 

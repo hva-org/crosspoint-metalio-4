@@ -1096,6 +1096,14 @@ void loop() {
       renderer.displayBuffer(HalDisplay::HALF_REFRESH);
     }
   }
+#if CROSSPOINT_AUDIOBOOK
+  // The power button's play/pause works on any screen, for a book that is
+  // open; with none open it does nothing. Open player and panel screens
+  // repaint through AUDIOBOOK.revision().
+  if (mappedInputManager.audiobookToggleClick() && AUDIOBOOK.isOpen()) {
+    AUDIOBOOK.toggle();
+  }
+#endif
 
   // Refresh the battery icon when USB is plugged or unplugged.
   // Placed after sleep guards so we never queue a render that won't be processed.
