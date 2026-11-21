@@ -21,14 +21,16 @@
 #include "util/SlideSwitch.h"
 
 #if CROSSPOINT_AUDIOBOOK
+#include <BookModel.h>
 #include <HalAudio.h>
 #include <Logging.h>
 #include <Memory.h>
 
 #include "I18nKeys.h"
+#include "RecentBooksStore.h"
+#include "activities/ActivityManager.h"
 #include "activities/settings/BtHeadphonesActivity.h"
 #include "audio/AudioOutput.h"
-#include "audio/AudiobookService.h"
 #endif
 
 namespace fui = freeink::ui;
@@ -41,11 +43,28 @@ constexpr fui::ActionId ACTION_BRIGHTNESS_STEP = 4;
 constexpr fui::ActionId ACTION_WARMTH_STEP = 5;
 constexpr fui::ActionId ACTION_TILE = 6;  // value = tile index
 #if CROSSPOINT_AUDIOBOOK
-constexpr fui::ActionId ACTION_VOLUME = 7;
-constexpr fui::ActionId ACTION_VOLUME_STEP = 8;
-constexpr fui::ActionId ACTION_AUDIO = 9;  // value = AudioControl
-enum class AudioControl : int16_t { Back30, PlayPause, Forward30, Output };
+// Every audio control shares one handler, so the panel stays within the
+// handler budget of UiAppHost::UiApp.
+constexpr fui::ActionId ACTION_AUDIO = 7;  // value = AudioControl
+enum class AudioControl : int16_t {
+  OpenPlayer,
+  ChapterSeek,  // slider; applied when the finger lifts
+  PreviousChapter,
+  Back30,
+  PlayPause,
+  Forward30,
+  NextChapter,
+  VolumeDown,
+  VolumeSet,  // slider; the event's dragPermille is the level
+  VolumeUp,
+  Output,
+};
 constexpr int32_t SKIP_SECONDS = 30;
+// Sizes of the audio section; computePanelBottom() mirrors them.
+constexpr int16_t kCardHeight = 56;
+constexpr int16_t kAudioRowHeight = 44;  // chapter and volume rows
+constexpr AudioControls::TransportSizes kPanelTransport{48, 64, 72, 12};
+constexpr int16_t kTimeLabelWidth = 76;
 #endif
 
 // iOS-style geometry. The panel is a card hanging from the top of the screen:
@@ -96,6 +115,7 @@ void FrontlightPanelActivity::onEnter() {
 #if CROSSPOINT_AUDIOBOOK
   volume = SETTINGS.audio.volume;
   volumeChanged = false;
+  findRecentAudiobook();
   refreshAudio();
 #endif
 
@@ -107,8 +127,6 @@ void FrontlightPanelActivity::onEnter() {
   app.on(ACTION_WARMTH_STEP, &FrontlightPanelActivity::onWarmthStepEvent, this);
   app.on(ACTION_TILE, &FrontlightPanelActivity::onTileEvent, this);
 #if CROSSPOINT_AUDIOBOOK
-  app.on(ACTION_VOLUME, &FrontlightPanelActivity::onVolumeEvent, this);
-  app.on(ACTION_VOLUME_STEP, &FrontlightPanelActivity::onVolumeStepEvent, this);
   app.on(ACTION_AUDIO, &FrontlightPanelActivity::onAudioEvent, this);
   // A dropped handler would leave its controls silently dead.
   if (app.handlerOverflowed()) LOG_ERR("PANEL", "Too many UI action handlers");
@@ -178,20 +196,20 @@ void FrontlightPanelActivity::onTileEvent(const fui::ActionEvent& event, void* u
 }
 
 #if CROSSPOINT_AUDIOBOOK
-void FrontlightPanelActivity::onVolumeEvent(const fui::ActionEvent& event, void* user) {
-  if (event.dragPermille < 0) return;
-  static_cast<FrontlightPanelActivity*>(user)->setVolume(percentFromPermille(event.dragPermille));
-}
-
-void FrontlightPanelActivity::onVolumeStepEvent(const fui::ActionEvent& event, void* user) {
-  auto* self = static_cast<FrontlightPanelActivity*>(user);
-  const int step = audiobook::AudioSettings::VOLUME_STEP;
-  self->setVolume(self->volume + (event.value > 0 ? step : -step));
-  self->requestUpdate();
-}
-
 void FrontlightPanelActivity::onAudioEvent(const fui::ActionEvent& event, void* user) {
-  static_cast<FrontlightPanelActivity*>(user)->runAudioControl(event.value);
+  static_cast<FrontlightPanelActivity*>(user)->runAudioControl(event.value, event.dragPermille);
+}
+
+void FrontlightPanelActivity::findRecentAudiobook() {
+  recentPath.clear();
+  recentTitle.clear();
+  for (const auto& book : RECENT_BOOKS.getBooks()) {
+    // A book removed from the card stays in Recents until the Library prunes it.
+    if (!audiobook::isAudiobookFile(book.path) || RecentBooksStore::isMissing(book)) continue;
+    recentPath = book.path;
+    recentTitle = book.title;
+    return;
+  }
 }
 
 void FrontlightPanelActivity::setVolume(const int value) {
@@ -207,8 +225,34 @@ void FrontlightPanelActivity::setVolume(const int value) {
   }
 }
 
-void FrontlightPanelActivity::runAudioControl(const int control) {
+void FrontlightPanelActivity::runAudioControl(const int control, const int16_t dragPermille) {
   switch (static_cast<AudioControl>(control)) {
+    case AudioControl::OpenPlayer:
+      app.clearTapFlash();
+      // Replacing the screen stack closes the panel too. A book that was not
+      // open opens paused: a "go there" control should not start sound.
+      if (audioBookOpen) {
+        activityManager.goToAudiobookPlayer(AUDIOBOOK.openedPath(), /*autoPlay=*/false);
+      } else if (!recentPath.empty()) {
+        activityManager.goToAudiobookPlayer(recentPath, /*autoPlay=*/false);
+      } else {
+        activityManager.goToFileBrowser("/");
+      }
+      return;
+    case AudioControl::ChapterSeek: {
+      // A finger held still sends the same position every frame.
+      if (dragPermille < 0 || !chapterBar.moves(dragPermille)) return;
+      bool changed = false;
+      {
+        RenderLock lock(*this);
+        changed = chapterBar.drag(dragPermille);
+      }
+      if (changed) requestUpdate();
+      return;
+    }
+    case AudioControl::PreviousChapter:
+      AUDIOBOOK.previousChapter();
+      break;
     case AudioControl::Back30:
       AUDIOBOOK.seekBy(-SKIP_SECONDS);
       break;
@@ -218,6 +262,23 @@ void FrontlightPanelActivity::runAudioControl(const int control) {
     case AudioControl::Forward30:
       AUDIOBOOK.seekBy(SKIP_SECONDS);
       break;
+    case AudioControl::NextChapter:
+      AUDIOBOOK.nextChapter();
+      break;
+    case AudioControl::VolumeDown:
+      setVolume(volume - audiobook::AudioSettings::VOLUME_STEP);
+      requestUpdate();
+      return;
+    case AudioControl::VolumeSet:
+      // Only a changed level repaints; see the audio-drag note in loop().
+      if (dragPermille < 0 || percentFromPermille(dragPermille) == volume) return;
+      setVolume(percentFromPermille(dragPermille));
+      requestUpdate();
+      return;
+    case AudioControl::VolumeUp:
+      setVolume(volume + audiobook::AudioSettings::VOLUME_STEP);
+      requestUpdate();
+      return;
     case AudioControl::Output:
       // As on the headphones screen: a scan holds the output until it ends.
       if (halAudio.link() == HalAudio::Link::Scanning) return;
@@ -244,31 +305,47 @@ void FrontlightPanelActivity::runAudioControl(const int control) {
   requestUpdate();
 }
 
-bool FrontlightPanelActivity::refreshAudio() {
+bool FrontlightPanelActivity::refreshAudio(const bool endDrag) {
   RenderLock lock(*this);
-  char status[sizeof(audioStatus)];
-  const bool bookOpen = AUDIOBOOK.isOpen();
-  const audiobook::PlayerSnapshot shown = AUDIOBOOK.snapshot();
-  const char* play = shown.playing || shown.waitingForOutput ? tr(STR_AUDIOBOOK_PAUSE) : tr(STR_AUDIOBOOK_PLAY);
-  const char* output = audiobook::currentOutput() == HalAudio::Output::Headphones ? tr(STR_AUDIOBOOK_HEADPHONES)
-                                                                                  : tr(STR_AUDIOBOOK_SPEAKER);
-  if (bookOpen && shown.open) {
+  if (endDrag) {
+    chapterBar.endDrag();
+    // render() reads and clears this under the same lock.
+    cleanRefreshPending = true;
+  }
+  const audiobook::PlayerSnapshot next = AUDIOBOOK.snapshot();
+  const bool bookOpen = AUDIOBOOK.isOpen() && next.open;
+  const bool headphones = audiobook::currentOutput() == HalAudio::Output::Headphones;
+  char line[sizeof(cardLine)];
+  std::string title;
+  if (bookOpen) {
+    title = AUDIOBOOK.title();
     char chapter[32];
-    snprintf(chapter, sizeof(chapter), tr(STR_AUDIOBOOK_CHAPTER_POSITION), static_cast<unsigned>(shown.chapter + 1),
-             static_cast<unsigned>(shown.chapterCount));
-    snprintf(status, sizeof(status), "%s - %s - %s", chapter, audiobook::playbackStateText(shown),
-             audiobook::outputName());
+    snprintf(chapter, sizeof(chapter), tr(STR_AUDIOBOOK_CHAPTER_POSITION), static_cast<unsigned>(next.chapter + 1),
+             static_cast<unsigned>(next.chapterCount));
+    snprintf(line, sizeof(line), "%s - %s", chapter, audiobook::playbackStateText(next));
   } else {
-    snprintf(status, sizeof(status), "%s", audiobook::outputStatus());
+    // While nothing plays, the second line is free for the headphones' state.
+    const char* output = audiobook::outputStatus();
+    if (recentPath.empty()) {
+      title = tr(STR_AUDIOBOOK_NO_AUDIOBOOK);
+      snprintf(line, sizeof(line), "%s", output[0] != '\0' ? output : tr(STR_BROWSE_FILES));
+    } else {
+      title = recentTitle;
+      snprintf(line, sizeof(line), "%s", output[0] != '\0' ? output : tr(STR_AUDIOBOOK_NOT_PLAYING));
+    }
   }
   shownBookRevision = AUDIOBOOK.revision();
   shownOutputRevision = halAudio.revision();
-  const bool changed =
-      bookOpen != audioBookOpen || play != playLabel || output != outputLabel || strcmp(status, audioStatus) != 0;
+  const bool changed = bookOpen != audioBookOpen || headphones != headphonesOut || title != cardTitle ||
+                       strcmp(line, cardLine) != 0 || chapterBar.stale(next) ||
+                       AudioControls::playState(next) != AudioControls::playState(shown) ||
+                       next.chapterLengthMs != shown.chapterLengthMs;
+  shown = next;
+  chapterBar.show(next);
   audioBookOpen = bookOpen;
-  playLabel = play;
-  outputLabel = output;
-  memcpy(audioStatus, status, sizeof(audioStatus));
+  headphonesOut = headphones;
+  if (title != cardTitle) cardTitle = std::move(title);
+  memcpy(cardLine, line, sizeof(cardLine));
   return changed;
 }
 #endif
@@ -367,7 +444,14 @@ bool FrontlightPanelActivity::handleHomeGesture() {
 void FrontlightPanelActivity::loop() {
   const auto touch = routeTouch(mappedInput, false, /*routeHeld=*/true);
   if (touch.routed) {
+#if CROSSPOINT_AUDIOBOOK
+    // The audio sliders repaint themselves only when what they show changes;
+    // a finger resting on one would otherwise refresh the panel every frame.
+    const bool audioDrag = touch.event.action == ACTION_AUDIO && touch.event.dragPermille >= 0;
+    if (app.invalidated() && !audioDrag) requestUpdate();
+#else
     if (app.invalidated()) requestUpdate();
+#endif
     if (touch) {
       if (touch.event.dragPermille >= 0) draggingSlider = true;
       return;
@@ -391,6 +475,16 @@ void FrontlightPanelActivity::loop() {
   if (draggingSlider) {
     if (!touch.snap.touchHeld) {
       draggingSlider = false;
+#if CROSSPOINT_AUDIOBOOK
+      // A chapter drag seeks once, when the finger lifts: while the drag still
+      // shows its target and outside the lock (the seek writes the saved
+      // position to the card); the drag then ends together with taking the
+      // new position, so no frame shows the old one.
+      size_t chapter = 0;
+      uint64_t target = 0;
+      if (chapterBar.pendingSeek(chapter, target)) AUDIOBOOK.seekInChapter(chapter, target);
+      refreshAudio(/*endDrag=*/true);
+#endif
       cleanRefreshPending = true;
       requestUpdate();
     }
@@ -414,11 +508,14 @@ void FrontlightPanelActivity::loop() {
     return;
   }
   if (!Frontlight.present() && AUDIOBOOK.isOpen() && mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-    runAudioControl(static_cast<int>(AudioControl::PlayPause));
+    runAudioControl(static_cast<int>(AudioControl::PlayPause), -1);
     return;
   }
-  // Repaint for a changed play state or output, not for every module reply.
-  if ((AUDIOBOOK.revision() != shownBookRevision || halAudio.revision() != shownOutputRevision) && refreshAudio()) {
+  // Repaint for a changed play state, output or shown minute, not for every
+  // module reply.
+  if ((AUDIOBOOK.revision() != shownBookRevision || halAudio.revision() != shownOutputRevision ||
+       chapterBar.stale(AUDIOBOOK.snapshot())) &&
+      refreshAudio()) {
     requestUpdate();
   }
 #endif
@@ -451,10 +548,14 @@ int FrontlightPanelActivity::computePanelBottom() const {
     y += tokens.spaceSm;
   }
 #if CROSSPOINT_AUDIOBOOK
-  // Mirrors buildAudioSection(): volume row, button row, status line.
-  y += lineHeight + tokens.spaceMd + kSliderRowHeight + 2 * tokens.spaceMd;
-  y += kQuickControlSize + tokens.spaceSm;
-  y += lineHeight + tokens.spaceMd;
+  // Mirrors buildAudioSection(): card, then chapter and transport rows while
+  // a book is open, then the volume row.
+  y += kCardHeight + tokens.spaceMd;
+  if (audioBookOpen) {
+    y += kAudioRowHeight + tokens.spaceSm;
+    y += kPanelTransport.play + tokens.spaceMd;
+  }
+  y += kAudioRowHeight + tokens.spaceMd;
 #endif
   // Icons are touch targets, so a buttons-only board gets no row and the
   // sheet is exactly the frontlight controls.
@@ -596,45 +697,95 @@ void FrontlightPanelActivity::buildPanelScreen(UiScreen& screen) {
 }
 
 #if CROSSPOINT_AUDIOBOOK
-void FrontlightPanelActivity::buildAudioSection(UiScreen& screen) {
+void FrontlightPanelActivity::buildCard(UiScreen& screen) {
+  // [book] Title                         >
+  //        Chapter 3 / 12 - Playing
+  // One touch target: it opens the player (or the file browser).
   const auto& theme = screen.theme();
-  // Its -/+ send one step; onVolumeStepEvent() scales it to VOLUME_STEP.
-  addSliderRow(screen, tr(STR_AUDIOBOOK_VOLUME), volume, ACTION_VOLUME, ACTION_VOLUME_STEP, /*showToggle=*/false);
-
-  // Play/pause and skips need a book; the output can be set without one.
-  struct Item {
-    AudioControl control;
-    const char* label;
-  };
-  const Item book[] = {{AudioControl::Back30, tr(STR_AUDIOBOOK_BACK_30)},
-                       {AudioControl::PlayPause, playLabel},
-                       {AudioControl::Forward30, tr(STR_AUDIOBOOK_FORWARD_30)},
-                       {AudioControl::Output, outputLabel}};
-  const Item* items = audioBookOpen ? book : book + 3;
-  const int count = audioBookOpen ? 4 : 1;
-  const int16_t gap = theme.spaceSm;
-  const fui::Rect band = screen.takeTop(kQuickControlSize, gap);
-  buttonProps.styles = theme.button;
-  buttonProps.styles.normal.border = fui::Paint::solid(fui::Color::Black);
-  buttonProps.styles.normal.borderWidth = 2;
-  buttonProps.text = theme.smallText;
-  buttonProps.radius = theme.controlRadius;
-  buttonProps.minTouchSize = theme.minTouchSize;
-  buttonProps.action = ACTION_AUDIO;
-  buttonProps.inputMask = fui::InputTouch;
-  for (int i = 0; i < count; i++) {
-    const int16_t left = static_cast<int16_t>(band.x + (band.width + gap) * i / count);
-    const int16_t right = static_cast<int16_t>(band.x + (band.width + gap) * (i + 1) / count - gap);
-    buttonProps.label = items[i].label;
-    buttonProps.value = static_cast<int16_t>(items[i].control);
-    screen.button(buttonProps, fui::Rect{left, band.y, static_cast<int16_t>(right - left), band.height});
+  const fui::Rect card = screen.takeTop(kCardHeight, theme.spaceMd);
+  const int16_t value = static_cast<int16_t>(AudioControl::OpenPlayer);
+  const fui::State state = screen.frame().stateFor(ACTION_AUDIO, value, fui::StateNormal);
+  const bool pressed = fui::hasState(state, fui::StateActive);
+  const fui::Paint ink = fui::Paint::solid(pressed ? fui::Color::White : fui::Color::Black);
+  if (pressed) {
+    screen.target().fill(card, fui::Paint::solid(fui::Color::Black), theme.controlRadius);
+  } else {
+    screen.target().stroke(card, ink, 2, theme.controlRadius);
   }
 
+  constexpr int16_t kIcon = 32;
+  constexpr int16_t kChevron = 24;
+  const int16_t pad = theme.spaceMd + theme.spaceXs;
+  const bool hasBook = audioBookOpen || !recentPath.empty();
+  const fui::Rect iconRect{static_cast<int16_t>(card.x + pad), static_cast<int16_t>(card.y + (card.height - kIcon) / 2),
+                           kIcon, kIcon};
+  screen.target().bitmap(
+      iconRect,
+      hasBook ? AudioControls::icon(AudioControls::Icon::Audiobook, kIcon) : fui::bitmapFromIcon(icon_folder_32),
+      fui::BitmapMode::Center, ink);
+  const fui::Rect chevron{static_cast<int16_t>(card.right() - pad - kChevron),
+                          static_cast<int16_t>(card.y + (card.height - kChevron) / 2), kChevron, kChevron};
+  screen.target().bitmap(chevron, fui::bitmapFromIcon(icon_reader_next_24), fui::BitmapMode::Center, ink);
+
   auto style = theme.smallText;
-  style.align = fui::TextAlign::Center;
   style.maxLines = 1;
-  const fui::Rect line = screen.takeTop(screen.target().lineHeight(style.font), theme.spaceMd);
-  if (audioStatus[0] != '\0') screen.target().text(line, audioStatus, style);
+  style.color = pressed ? fui::Color::White : fui::Color::Black;
+  const int16_t lineHeight = screen.target().lineHeight(style.font);
+  const int16_t textX = static_cast<int16_t>(iconRect.right() + pad);
+  const int16_t textW = static_cast<int16_t>(chevron.x - theme.spaceSm - textX);
+  const int16_t top = static_cast<int16_t>(card.y + (card.height - 2 * lineHeight) / 2);
+  style.bold = true;
+  screen.target().text(fui::Rect{textX, top, textW, lineHeight}, cardTitle.c_str(), style);
+  style.bold = false;
+  screen.target().text(fui::Rect{textX, static_cast<int16_t>(top + lineHeight), textW, lineHeight}, cardLine, style);
+  screen.frame().hit(card, ACTION_AUDIO, value, fui::InputTouch);
+}
+
+void FrontlightPanelActivity::buildAudioSection(UiScreen& screen) {
+  const auto& theme = screen.theme();
+  const auto value = [](const AudioControl control) { return static_cast<int16_t>(control); };
+  buildCard(screen);
+
+  auto labelStyle = theme.smallText;
+  labelStyle.maxLines = 1;
+  if (audioBookOpen) {
+    // 12 min ======o---------- -23 min
+    const fui::Rect row = screen.takeTop(kAudioRowHeight, theme.spaceSm);
+    const int16_t gap = theme.spaceSm;
+    const fui::Rect slider{static_cast<int16_t>(row.x + kTimeLabelWidth + gap), row.y,
+                           static_cast<int16_t>(row.width - 2 * (kTimeLabelWidth + gap)), row.height};
+    chapterBar.slider(screen, slider, ACTION_AUDIO, value(AudioControl::ChapterSeek));
+    const int16_t lineHeight = screen.target().lineHeight(labelStyle.font);
+    const int16_t labelY = static_cast<int16_t>(row.y + (row.height - lineHeight) / 2);
+    labelStyle.bold = chapterBar.dragging();
+    screen.target().text(fui::Rect{row.x, labelY, kTimeLabelWidth, lineHeight}, chapterBar.elapsedLabel(), labelStyle);
+    labelStyle.align = fui::TextAlign::Right;
+    screen.target().text(
+        fui::Rect{static_cast<int16_t>(row.right() - kTimeLabelWidth), labelY, kTimeLabelWidth, lineHeight},
+        chapterBar.leftLabel(), labelStyle);
+
+    audioControls.transportRow(
+        screen, screen.takeTop(kPanelTransport.play, theme.spaceMd), kPanelTransport, ACTION_AUDIO,
+        {value(AudioControl::PreviousChapter), value(AudioControl::Back30), value(AudioControl::PlayPause),
+         value(AudioControl::Forward30), value(AudioControl::NextChapter)},
+        AudioControls::playState(shown));
+  }
+
+  // [vol-] ======o------ [vol+] [output]
+  const fui::Rect row = screen.takeTop(kAudioRowHeight, theme.spaceMd);
+  const int16_t size = row.height;
+  const int16_t gap = theme.spaceMd;
+  const fui::Rect output{static_cast<int16_t>(row.right() - size), row.y, size, size};
+  const fui::Rect up{static_cast<int16_t>(output.x - gap - size), row.y, size, size};
+  const fui::Rect down{row.x, row.y, size, size};
+  const fui::Rect slider{static_cast<int16_t>(down.right() + gap), row.y,
+                         static_cast<int16_t>(up.x - gap - down.right() - gap), size};
+  audioControls.iconButton(screen, down, AudioControls::Icon::VolumeLow, ACTION_AUDIO, value(AudioControl::VolumeDown));
+  AudioControls::slimSlider(screen, slider, volume, 100, ACTION_AUDIO, value(AudioControl::VolumeSet));
+  audioControls.iconButton(screen, up, AudioControls::Icon::VolumeHigh, ACTION_AUDIO, value(AudioControl::VolumeUp));
+  audioControls.iconButton(screen, output,
+                           headphonesOut ? AudioControls::Icon::Headphones : AudioControls::Icon::Speaker, ACTION_AUDIO,
+                           value(AudioControl::Output));
 }
 #endif
 
