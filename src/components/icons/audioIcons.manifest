@@ -1,0 +1,18 @@
+# Manifest for src/components/icons/audioIcons.h (audiobook builds only) — regenerate with:
+#   python3 freeink-sdk/libs/assets/Icons/tools/gen_icons.py \
+#     --manifest src/components/icons/audioIcons.manifest \
+#     --svgdir freeink-sdk/libs/assets/Icons/lucide/icons \
+#     --sizes 24,32,40,48 --out src/components/icons/audioIcons.h
+# then run ./bin/clang-format-fix -g. Needs the Lucide submodule
+# (git -C freeink-sdk submodule update --init libs/assets/Icons/lucide).
+# Licenses and copyright notices: freeink-sdk/libs/assets/Icons/lucide/LICENSE.
+replay = rotate-ccw
+forward = rotate-cw
+minus = minus
+plus = plus
+chapters = list
+speaker = speaker
+headphones = headphones
+volume_low = volume-1
+volume_high = volume-2
+audiobook = book-headphones
