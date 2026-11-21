@@ -489,6 +489,12 @@ void AudiobookService::jumpToChapter(const size_t index) {
   savePosition();
 }
 
+void AudiobookService::seekInChapter(const size_t index, const uint64_t offsetMs) {
+  if (!open_ || index >= marks_.size()) return;
+  loadTrack(marks_[index].track, marks_[index].startMs + offsetMs);
+  savePosition();
+}
+
 void AudiobookService::nextChapter() {
   if (!open_ || marks_.empty()) return;
   const size_t chapter = currentChapter();

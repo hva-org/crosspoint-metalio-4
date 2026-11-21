@@ -24,6 +24,14 @@ float playbackSpeed(const uint8_t index) {
   return index < PLAYBACK_SPEED_COUNT ? PLAYBACK_SPEEDS[index] : PLAYBACK_SPEEDS[DEFAULT_SPEED_INDEX];
 }
 
+uint8_t steppedSpeedIndex(const uint8_t index, const int delta) {
+  const int from = index < PLAYBACK_SPEED_COUNT ? index : DEFAULT_SPEED_INDEX;
+  const int next = from + delta;
+  if (next < 0) return 0;
+  if (next >= PLAYBACK_SPEED_COUNT) return PLAYBACK_SPEED_COUNT - 1;
+  return static_cast<uint8_t>(next);
+}
+
 PcmPipeline::~PcmPipeline() { destroy(); }
 
 void PcmPipeline::destroy() {

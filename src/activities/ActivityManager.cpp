@@ -347,12 +347,7 @@ void ActivityManager::goToReader(std::string path, const bool allowFastInitialRe
 
 #if CROSSPOINT_AUDIOBOOK
   if (audiobook::isAudiobookFile(path)) {
-    auto player = makeUniqueNoThrow<AudiobookPlayerActivity>(renderer, mappedInput, std::move(path));
-    if (!player) {
-      LOG_ERR("ACT", "OOM: audiobook player activity");
-      return;
-    }
-    replaceActivity(std::move(player));
+    goToAudiobookPlayer(std::move(path), /*autoPlay=*/true);
     return;
   }
 #endif
@@ -362,6 +357,17 @@ void ActivityManager::goToReader(std::string path, const bool allowFastInitialRe
     replaceActivity(std::move(activity));
   }
 }
+
+#if CROSSPOINT_AUDIOBOOK
+void ActivityManager::goToAudiobookPlayer(std::string path, const bool autoPlay) {
+  auto player = makeUniqueNoThrow<AudiobookPlayerActivity>(renderer, mappedInput, std::move(path), autoPlay);
+  if (!player) {
+    LOG_ERR("ACT", "OOM: audiobook player activity");
+    return;
+  }
+  replaceActivity(std::move(player));
+}
+#endif
 
 void ActivityManager::goToSleep(bool fromTimeout) {
   replaceActivity(std::make_unique<SleepActivity>(renderer, mappedInput, fromTimeout));

@@ -14,8 +14,12 @@
 // the book is reached again from Recents or the file browser.
 class AudiobookPlayerActivity final : public Activity, private UiAppHost {
  public:
-  AudiobookPlayerActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string path)
-      : Activity("AudiobookPlayer", renderer, mappedInput), UiAppHost(renderer), path(std::move(path)) {}
+  // autoPlay starts the book when it was not already open.
+  AudiobookPlayerActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string path, bool autoPlay)
+      : Activity("AudiobookPlayer", renderer, mappedInput),
+        UiAppHost(renderer),
+        path(std::move(path)),
+        autoPlay(autoPlay) {}
 
   void onEnter() override;
   void loop() override;
@@ -44,6 +48,7 @@ class AudiobookPlayerActivity final : public Activity, private UiAppHost {
   void refresh();
 
   std::string path;
+  bool autoPlay = true;
   bool openFailed = false;
   uint32_t shownRevision = 0;
   uint64_t shownMinute = UINT64_MAX;

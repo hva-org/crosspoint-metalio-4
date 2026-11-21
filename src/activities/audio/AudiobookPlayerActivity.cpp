@@ -44,7 +44,7 @@ void AudiobookPlayerActivity::onEnter() {
   if (!AUDIOBOOK.open(path)) {
     LOG_ERR("ABK", "Cannot open %s", path.c_str());
     openFailed = true;
-  } else if (!alreadyOpen) {
+  } else if (!alreadyOpen && autoPlay) {
     AUDIOBOOK.play();
   }
   refresh();

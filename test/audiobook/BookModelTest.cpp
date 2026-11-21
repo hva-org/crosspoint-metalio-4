@@ -61,6 +61,41 @@ TEST(BookModel, ChapterAtFindsTheContainingChapter) {
   EXPECT_EQ(chapterAt(marks, 0, 3, 5), 0u);
 }
 
+TEST(BookModel, ChapterSeekStaysInsideTheChapter) {
+  EXPECT_EQ(chapterSeekOffsetMs(60000, 0), 0u);
+  EXPECT_EQ(chapterSeekOffsetMs(60000, 500), 30000u);
+  // The end is held 1 s short, so the seek never reaches the next chapter.
+  EXPECT_EQ(chapterSeekOffsetMs(60000, 1000), 59000u);
+  EXPECT_EQ(chapterSeekOffsetMs(60000, 990), 59000u);
+  EXPECT_EQ(chapterSeekOffsetMs(60000, -20), 0u);
+  EXPECT_EQ(chapterSeekOffsetMs(60000, 1500), 59000u);
+  // Unknown or too short to seek inside.
+  EXPECT_EQ(chapterSeekOffsetMs(0, 500), 0u);
+  EXPECT_EQ(chapterSeekOffsetMs(1000, 1000), 0u);
+  // Long chapters keep millisecond precision.
+  EXPECT_EQ(chapterSeekOffsetMs(36000000, 250), 9000000u);
+}
+
+TEST(BookModel, ChapterMinutesChangeTogetherOnceAMinute) {
+  // A 90 s chapter: both labels hold for the whole first minute, then move
+  // together, so the screen repaints once a minute rather than twice.
+  for (const uint64_t elapsed : {0ull, 30000ull, 59999ull}) {
+    const auto m = chapterMinutes(elapsed, 90000);
+    EXPECT_EQ(m.elapsed, 0u) << elapsed;
+    EXPECT_EQ(m.left, 2u) << elapsed;
+  }
+  const auto later = chapterMinutes(60000, 90000);
+  EXPECT_EQ(later.elapsed, 1u);
+  EXPECT_EQ(later.left, 1u);
+  // The labels add up to the length rounded up.
+  const auto m = chapterMinutes(580000, 630000);  // 9:40 of 10:30
+  EXPECT_EQ(m.length, 11u);
+  EXPECT_EQ(m.elapsed + m.left, m.length);
+  // Unknown length: nothing left to show; past the end never goes negative.
+  EXPECT_EQ(chapterMinutes(120000, 0).left, 0u);
+  EXPECT_EQ(chapterMinutes(700000, 630000).left, 0u);
+}
+
 TEST(BookModel, ProgressRoundTripsAndRejectsBadData) {
   uint8_t bytes[PROGRESS_BYTES];
   encodeProgress({513, 3600123}, bytes);

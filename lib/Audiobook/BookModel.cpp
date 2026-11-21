@@ -87,6 +87,24 @@ size_t chapterAt(const ChapterMark* chapters, const size_t count, const uint16_t
   return found;
 }
 
+uint64_t chapterSeekOffsetMs(const uint64_t lengthMs, const int32_t permille) {
+  constexpr uint64_t END_MARGIN_MS = 1000;
+  if (lengthMs <= END_MARGIN_MS) return 0;
+  const uint64_t clamped = permille < 0 ? 0 : permille > 1000 ? 1000 : static_cast<uint64_t>(permille);
+  const uint64_t offset = lengthMs * clamped / 1000;
+  const uint64_t last = lengthMs - END_MARGIN_MS;
+  return offset < last ? offset : last;
+}
+
+ChapterMinutes chapterMinutes(const uint64_t elapsedMs, const uint64_t lengthMs) {
+  constexpr uint64_t MINUTE_MS = 60000;
+  ChapterMinutes minutes;
+  minutes.elapsed = static_cast<uint32_t>(elapsedMs / MINUTE_MS);
+  minutes.length = static_cast<uint32_t>((lengthMs + MINUTE_MS - 1) / MINUTE_MS);
+  minutes.left = minutes.length > minutes.elapsed ? minutes.length - minutes.elapsed : 0;
+  return minutes;
+}
+
 void encodeProgress(const SavedPosition& position, uint8_t (&out)[PROGRESS_BYTES]) {
   out[0] = PROGRESS_VERSION;
   out[1] = static_cast<uint8_t>(position.track);
