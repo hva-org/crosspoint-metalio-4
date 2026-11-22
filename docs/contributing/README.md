@@ -8,5 +8,6 @@ It is written for software developers who may be new to embedded development.
 - [Development Workflow](./development-workflow.md)
 - [Testing and Debugging](./testing-debugging.md)
 - [Touch and UI Development](./touch-and-ui.md)
+- [Metalio E-Ink 4 Display Notes](./metalio-eink4-display.md)
 
 If you are new, start with [Getting Started](./getting-started.md).
