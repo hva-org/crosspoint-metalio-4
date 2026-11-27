@@ -7,14 +7,22 @@
 
 namespace audiobook {
 
-// AudioSpecificConfig fields the AAC decoder needs.
+// AudioSpecificConfig fields the player needs, plus the raw config for the
+// decoder. 14 bytes cover LC with explicit or backward-compatible SBR and PS
+// signalling (7 bytes at most) and keep the struct, which travels in every
+// ring message, at 24 bytes.
 struct AacConfig {
+  static constexpr size_t MAX_BYTES = 14;
+
   uint8_t objectType = 0;  // 2 = LC; 5/29 = HE-AAC (SBR) over an LC core
   uint32_t coreRate = 0;
   uint8_t channels = 0;
+  uint8_t length = 0;
+  uint8_t bytes[MAX_BYTES] = {};
 };
 
-// Parses an AudioSpecificConfig. Returns false for unsupported object types.
+// Parses an AudioSpecificConfig. Returns false for unsupported object types
+// and for configs longer than AacConfig::MAX_BYTES.
 bool parseAacConfig(const uint8_t* data, size_t len, AacConfig& out);
 
 // Sample tables of one track, located but not loaded.

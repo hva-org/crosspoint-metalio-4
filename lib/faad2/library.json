@@ -1,0 +1,11 @@
+{
+  "name": "faad2",
+  "version": "2.11.4",
+  "description": "FAAD2 AAC-LC and HE-AAC v1 decoder, floating point. Vendored with two small local patches; see README.md.",
+  "license": "GPL-2.0-or-later",
+  "build": {
+    "srcDir": "libfaad",
+    "includeDir": "include",
+    "flags": ["-w", "-DHAVE_CONFIG_H"]
+  }
+}

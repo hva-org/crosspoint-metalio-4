@@ -100,6 +100,9 @@ bool readRate(BitReader& bits, uint32_t& rate) {
 }  // namespace
 
 bool parseAacConfig(const uint8_t* data, const size_t len, AacConfig& out) {
+  if (len > AacConfig::MAX_BYTES) return false;
+  memcpy(out.bytes, data, len);
+  out.length = static_cast<uint8_t>(len);
   BitReader bits(data, len);
   uint32_t type = 0, rate = 0, channels = 0;
   if (!readObjectType(bits, type) || !readRate(bits, rate) || !bits.read(4, channels)) return false;
