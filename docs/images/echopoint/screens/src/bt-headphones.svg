@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="800" viewBox="0 0 480 800">
+  <!-- Illustration of Settings > Bluetooth Headphones (BtHeadphonesActivity, Menu view),
+       Lyra theme on the Metalio E-Ink 4 (touch: no button-hint footer). Headphones saved,
+       connected and chosen as the audio output; selection on row 0 as after onEnter(). -->
+  <rect x="0" y="0" width="480" height="800" fill="#ffffff"/>
+
+  <g font-family="Noto Sans, DejaVu Sans, Arial, sans-serif" fill="#000000">
+    <!-- Header band: BaseTheme::drawHeader -> fui::header, rect {0,10,480,84} -->
+    <!-- Back button: icon_header_back_32 (Lucide arrow-left) at {15,48,32,32} -->
+    <g transform="translate(15 48) scale(1.333333)" fill="none" stroke="#000000" stroke-width="2"
+       stroke-linecap="round" stroke-linejoin="round">
+      <path d="m12 19-7-7 7-7"/>
+      <path d="M19 12H5"/>
+    </g>
+    <!-- Title: STR_AUDIOBOOK_HEADPHONES_SETTINGS, UI_12 bold, left-aligned -->
+    <text x="53" y="71" font-size="24" font-weight="bold">Bluetooth Headphones</text>
+
+    <!-- Battery: percent label (SMALL font) right-aligned before the 16x12 glyph -->
+    <text x="433" y="26" font-size="16.5" text-anchor="end">82%</text>
+    <rect x="437.5" y="14.5" width="15" height="11" fill="none" stroke="#000000" stroke-width="1"/>
+    <rect x="453" y="17" width="2" height="6"/>
+    <rect x="439" y="16" width="9" height="8"/>
+
+    <!-- Header underline: 3px bottom rule -->
+    <rect x="0" y="91" width="480" height="3"/>
+
+    <!-- List rows: x 23..457 (listInset 20), touch rows min 56px, 6px gap, text inset 8 -->
+    <!-- Row 0 (selected): light-pill selection = LightGray dither, radius 6 -->
+    <rect x="23" y="110" width="434" height="69" rx="6" ry="6" fill="#bfbfbf"/>
+    <text x="31" y="142" font-size="24">Audio Output</text>
+    <text x="449" y="140" font-size="20" text-anchor="end">Headphones</text>
+    <text x="31" y="167" font-size="20">My Headphones</text>
+
+    <!-- Row 1: saved headphones, value STR_AUDIOBOOK_CONNECTED -->
+    <text x="31" y="222" font-size="24">My Headphones</text>
+    <text x="449" y="221" font-size="20" text-anchor="end">Connected</text>
+
+    <!-- Row 2: STR_AUDIOBOOK_FORGET_HEADPHONES -->
+    <text x="31" y="284" font-size="24">Forget Headphones</text>
+
+    <!-- Row 3: STR_AUDIOBOOK_SCAN -->
+    <text x="31" y="346" font-size="24">Scan for Headphones</text>
+
+    <!-- Row 4: STR_AUDIOBOOK_TEST_SOUND (enabled: headset connected, nothing streaming) -->
+    <text x="31" y="408" font-size="24">Test Sound</text>
+
+    <!-- Row 5: STR_AUDIOBOOK_MODULE_LOG -->
+    <text x="31" y="470" font-size="24">Module Log</text>
+  </g>
+</svg>
