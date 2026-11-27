@@ -114,8 +114,7 @@ class AudioControls {
  private:
   void prepareButton(const Screen& screen);
   void skipButton(Screen& screen, freeink::ui::Rect rect, Icon icon, freeink::ui::ActionId action, int16_t value);
-  void playButton(Screen& screen, freeink::ui::Rect rect, freeink::ui::ActionId action, int16_t value,
-                  PlayState state);
+  void playButton(Screen& screen, freeink::ui::Rect rect, freeink::ui::ActionId action, int16_t value, PlayState state);
 
   // Embeds a 324-byte StyleSet; a member keeps it off the render stack.
   freeink::ui::ButtonProps button_;
