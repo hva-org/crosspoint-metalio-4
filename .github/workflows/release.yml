@@ -1,7 +1,8 @@
 name: Compile Release
 
-# Build and attach firmware only after a release is published. The release tag
-# supplies both the source revision and the version in each asset name.
+# Build and attach the EchoPoint firmware after a release or pre-release is
+# published. The tag supplies the source revision and the asset version; OTA
+# looks for echopoint-<tag>-metalio_eink4.bin, so the tag has no "v" prefix.
 
 on:
   release:
@@ -10,37 +11,13 @@ on:
 permissions:
   contents: read
 
+env:
+  PIO_ENV: metalio_eink4-audiobook-gh_release
+  DEVICE: metalio_eink4
+
 jobs:
   build-release:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - release_env: gh_release
-            rc_env: gh_release_rc
-            device: x3-x4
-          - release_env: sticky-gh_release
-            rc_env: sticky-gh_release_rc
-            device: sticky
-          - release_env: x4pro-gh_release
-            rc_env: x4pro-gh_release_rc
-            device: x4pro
-          - release_env: x4c-gh_release
-            rc_env: x4c-gh_release_rc
-            device: x4c
-          - release_env: papermono-gh_release
-            rc_env: papermono-gh_release_rc
-            device: papermono
-          - release_env: metalio_eink4-gh_release
-            rc_env: metalio_eink4-gh_release_rc
-            device: metalio_eink4
-          - release_env: eego_a4-gh_release
-            rc_env: eego_a4-gh_release_rc
-            device: eego_a4
-          - release_env: picco-gh_release
-            rc_env: picco-gh_release_rc
-            device: picco
     steps:
       - uses: actions/checkout@v6
         with:
@@ -51,12 +28,10 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          version="${RELEASE_TAG#v}"
           configured_version="$(sed -n 's/^version = //p' platformio.ini | head -n1)"
-          if [ "${{ github.event.release.prerelease }}" = "true" ]; then
-            test "$version" = "${configured_version}rc"
-          else
-            test "$version" = "$configured_version"
+          if [ "$RELEASE_TAG" != "$configured_version" ]; then
+            echo "::error::Tag '$RELEASE_TAG' must equal the platformio.ini version '$configured_version'."
+            exit 1
           fi
 
       - uses: actions/setup-python@v6
@@ -81,8 +56,6 @@ jobs:
             "reedsolo>=1.5.3,<1.8" "esp-idf-size>=2.0.0" "esp-coredump>=1.14.0"
 
       - name: Pin pioarduino core inside the platform penv
-        env:
-          PIO_ENV: ${{ github.event.release.prerelease && matrix.rc_env || matrix.release_env }}
         run: |
           set -euo pipefail
           # Envs with custom_sdkconfig run a nested `pio run` from
@@ -92,39 +65,30 @@ jobs:
           uv pip install --python ~/.platformio/penv/bin/python "pioarduino==6.1.19"
           ~/.platformio/penv/bin/pio --version
 
-      - name: Build CrossPoint
+      - name: Build EchoPoint
         env:
-          PIO_ENV: ${{ github.event.release.prerelease && matrix.rc_env || matrix.release_env }}
-          # Enrollment gate for the LCP service: official releases carry this
-          # key, self-builds do not (and lose only LCP). Rotate per release by
-          # updating the repo secret; retire old values in the service's
-          # RELEASE_KEYS list.
+          # Optional LCP enrollment key; without the secret the build only
+          # loses LCP.
           FREEINK_LCP_RELEASE_KEY: ${{ secrets.FREEINK_LCP_RELEASE_KEY }}
         run: |
           if [ -n "$FREEINK_LCP_RELEASE_KEY" ]; then
             export PLATFORMIO_BUILD_FLAGS="-DFREEINK_LCP_RELEASE_KEY=\\\"$FREEINK_LCP_RELEASE_KEY\\\""
           fi
-          CROSSPOINT_RC_HASH="$(git rev-parse --short=7 HEAD)" pio run -e "$PIO_ENV" -j1
+          pio run -e "$PIO_ENV" -j1
 
       - name: Prepare firmware asset
         id: asset
         env:
-          PIO_ENV: ${{ github.event.release.prerelease && matrix.rc_env || matrix.release_env }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          version="${RELEASE_TAG#v}"
-          asset="crosspoint-${version}-${{ matrix.device }}.bin"
+          asset="echopoint-${RELEASE_TAG}-${DEVICE}.bin"
           cp ".pio/build/${PIO_ENV}/firmware.bin" "$asset"
           echo "name=$asset" >> "$GITHUB_OUTPUT"
 
       - name: Prepare license asset
-        if: matrix.device == 'x3-x4'
-        env:
-          PIO_ENV: ${{ github.event.release.prerelease && matrix.rc_env || matrix.release_env }}
         run: python3 scripts/build_release_license.py --env "$PIO_ENV" --output dist/LICENSE
 
       - name: Stage license asset
-        if: matrix.device == 'x3-x4'
         uses: actions/upload-artifact@v6
         with:
           name: release-license
@@ -147,11 +111,11 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Download firmware assets
+      - name: Download firmware asset
         uses: actions/download-artifact@v4
         with:
           path: dist
-          pattern: crosspoint-*.bin
+          pattern: echopoint-*.bin
           merge-multiple: true
 
       - name: Download license asset
@@ -160,16 +124,15 @@ jobs:
           name: release-license
           path: dist
 
-      - name: Attach firmware assets
+      - name: Attach release assets
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          version="${RELEASE_TAG#v}"
-          for device in x3-x4 sticky x4pro x4c papermono metalio_eink4 eego_a4 picco; do
-            test -f "dist/crosspoint-${version}-${device}.bin"
-          done
-          test "$(find dist -maxdepth 1 -type f -name 'crosspoint-*.bin' | wc -l)" -eq 8
+          asset="dist/echopoint-${RELEASE_TAG}-${DEVICE}.bin"
+          # Exactly one firmware image and the license file.
+          test -s "$asset"
           test -s dist/LICENSE
-          gh release upload "$RELEASE_TAG" dist/crosspoint-*.bin dist/LICENSE \
+          test "$(find dist -type f | wc -l)" -eq 2
+          gh release upload "$RELEASE_TAG" "$asset" dist/LICENSE \
             --repo "$GITHUB_REPOSITORY" --clobber

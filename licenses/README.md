@@ -20,11 +20,11 @@ Keep these sources and this license file available with the firmware downloads.
 
 To build the same source revision:
 
-1. Clone the repository with `git clone --recursive https://github.com/crosspoint-reader/crosspoint-reader.git`.
+1. Clone the repository with `git clone --recursive https://github.com/hva-org/echopoint.git`.
 2. Select the release tag with `git checkout <release-tag>`.
 3. Download the matching SDK with `git submodule update --init --recursive`.
 4. Follow `docs/contributing/getting-started.md` for the build tools.
-5. Build the required device with `pio run -e <environment>`.
+5. Build the release firmware with `pio run -e metalio_eink4-audiobook-gh_release`.
 
 `platformio.ini` selects the platform, dependency versions, build flags, and patch scripts.
 The source packages listed in the release file include third-party code that the GitHub source archive omits.
@@ -48,8 +48,9 @@ The `scripts/` directory contains CrossPoint's changes to those dependencies.
 | Built-in fonts and SD card fonts | `fonts.txt`. |
 | Hyphenation data | `hyphenation.txt`. |
 | Lucide and Feather icons | `freeink-sdk/libs/assets/Icons/lucide/LICENSE`. |
-| Helix MP3 and AAC decoders (`lib/helix`) | RealNetworks RPSL, or RCSL for RCSL licensees; texts in `lib/helix/src/*/`. GPL-incompatible: only the local `metalio_eink4-audiobook` build includes them, and that build must not be distributed. |
-| Sonic (`lib/sonic`) | Apache-2.0 in `lib/sonic/LICENSE`. Built only into `metalio_eink4-audiobook`. |
+| minimp3 (`lib/minimp3`) | CC0-1.0 in `lib/minimp3/LICENSE`. Built into the EchoPoint audiobook firmware. |
+| FAAD2 (`lib/faad2`) | GPL-2.0-or-later in `lib/faad2/COPYING`; compatible with the GPLv3 firmware. Built into the EchoPoint audiobook firmware. |
+| Sonic (`lib/sonic`) | Apache-2.0 in `lib/sonic/LICENSE`. Built into the EchoPoint audiobook firmware. |
 
 The release file includes the notices from the installed dependency versions.
 Keep original notices when you update or copy third-party code.
@@ -68,7 +69,6 @@ The notices do not grant permission to use a reserved name.
 
 Russian, Swedish, and Ukrainian hyphenation patterns use LPPL terms.
 Their compatibility with the combined GPL firmware remains an open question.
-The Helix decoders are not compatible with the GPL; no released firmware includes them.
 The source requirements for some platform binary libraries also remain open.
 Keep these questions separate from the notice changes.
 
@@ -78,6 +78,4 @@ Run `python3 scripts/build_release_license.py --env <environment> --output <path
 The script reads the installed dependency notices and writes one release `LICENSE` file.
 It does not download packages or create another source archive.
 
-For the final release, the workflow attaches the license file beside the firmware files.
-For a release candidate, each artifact includes its own copy.
-The web footer links to the license information in this repository.
+For every release, including pre-releases, the workflow attaches the license file beside the firmware file.

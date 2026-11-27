@@ -20,8 +20,16 @@ struct Decoded {
   size_t damaged = 0;
 };
 
+AacConfig parsedConfig(const std::vector<uint8_t>& bytes) {
+  AacConfig config;
+  EXPECT_TRUE(parseAacConfig(bytes.data(), bytes.size(), config));
+  return config;
+}
+
 // Runs a whole file through reader -> decoder -> pipeline, as the device does.
-Decoded decodeFile(const std::string& name, const float speed, const uint64_t seekMs = 0) {
+// `config` replaces the file's AudioSpecificConfig when it is not empty.
+Decoded decodeFile(const std::string& name, const float speed, const uint64_t seekMs = 0,
+                   const std::vector<uint8_t>& config = {}) {
   Decoded out;
   MemorySource source(loadFixture(name));
   CachedReader cache;
@@ -35,7 +43,8 @@ Decoded decodeFile(const std::string& name, const float speed, const uint64_t se
   if (!opened) return out;
 
   AudioDecoder decoder;
-  EXPECT_TRUE(decoder.begin(reader->codec(), isMp3 ? AacConfig{} : mp4.aacConfig()));
+  const AacConfig aac = isMp3 ? AacConfig{} : config.empty() ? mp4.aacConfig() : parsedConfig(config);
+  EXPECT_TRUE(decoder.begin(reader->codec(), aac));
   if (seekMs > 0) {
     uint64_t actual = 0;
     EXPECT_TRUE(reader->seekMs(seekMs, actual));
@@ -124,6 +133,33 @@ TEST(DecodeChain, StereoVbrMp3DecodesAfterSeek) {
   EXPECT_GT(rms(d.pcm, 1600), 1000.0);
 }
 
+TEST(DecodeChain, AacDecodesAfterSeek) {
+  const Decoded d = decodeFile("chapters.m4b", 1.0f, 1500);
+  EXPECT_EQ(d.damaged, 0u);
+  EXPECT_NEAR(static_cast<double>(d.pcm.size()), 1.5 * OUTPUT_SAMPLE_RATE, 0.1 * OUTPUT_SAMPLE_RATE);
+  EXPECT_NEAR(frequency(d.pcm), 440.0, 5.0);
+}
+
+// The fixture has no SBR data, so these check the 2x output path (QMF banks,
+// 2048-frame output) rather than SBR synthesis itself.
+TEST(DecodeChain, ExplicitHeAacConfigOutputsTwiceTheCoreRate) {
+  // AOT 5, core 22.05 kHz mono, extension 44.1 kHz, core AOT 2.
+  const Decoded d = decodeFile("tone.m4a", 1.0f, 0, {0x2B, 0x8A, 0x08, 0x00});
+  EXPECT_EQ(d.format.sampleRate, 44100u);
+  EXPECT_EQ(d.format.channels, 1);
+  EXPECT_EQ(d.damaged, 0u);
+  EXPECT_NEAR(frequency(d.pcm), 440.0, 5.0);
+}
+
+TEST(DecodeChain, HeAacV2ConfigPlaysAsSbrMono) {
+  // Same as above with AOT 29 (SBR + parametric stereo).
+  const Decoded d = decodeFile("tone.m4a", 1.0f, 0, {0xEB, 0x8A, 0x08, 0x00});
+  EXPECT_EQ(d.format.sampleRate, 44100u);
+  EXPECT_EQ(d.format.channels, 1);
+  EXPECT_EQ(d.damaged, 0u);
+  EXPECT_NEAR(frequency(d.pcm), 440.0, 5.0);
+}
+
 TEST(DecodeChain, DamagedPacketsStayWithinTheOutputBuffer) {
   // Raw AAC blocks have no sync word or checksum, so junk may decode as noise.
   // What matters is that it never writes past one frame or crashes.
@@ -133,7 +169,7 @@ TEST(DecodeChain, DamagedPacketsStayWithinTheOutputBuffer) {
   PcmFormat format;
   for (const Codec codec : {Codec::Aac, Codec::Mp3}) {
     AudioDecoder decoder;
-    ASSERT_TRUE(decoder.begin(codec, AacConfig{2, 22050, 1}));
+    ASSERT_TRUE(decoder.begin(codec, parsedConfig({0x13, 0x88})));  // LC, 22.05 kHz mono
     for (int i = 0; i < 20; i++) {
       const int frames = decoder.decode(junk.data(), junk.size(), pcm.get(), MAX_DECODED_SAMPLES, format);
       EXPECT_LE(frames, 2048);

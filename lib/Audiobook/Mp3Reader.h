@@ -15,7 +15,7 @@ struct Mp3FrameHeader {
 };
 
 // Parses an MPEG audio Layer III frame header. Free-format and Layer I/II
-// frames are rejected: the Helix decoder handles Layer III only.
+// frames are rejected: the decoder is built for Layer III only.
 bool parseMp3Header(const uint8_t* h, Mp3FrameHeader& out);
 
 // Frame-by-frame MP3 reader: skips ID3v2 tags and stops at an ID3v1 tag.

@@ -8,6 +8,7 @@
 #include <Memory.h>
 #include <Mp3Reader.h>
 #include <Mp4Reader.h>
+#include <esp_heap_caps.h>
 
 #include <algorithm>
 #include <cstring>
@@ -30,10 +31,14 @@ constexpr size_t CHAPTER_CACHE_BYTES = 1024;
 constexpr size_t MONO_CHUNK = 512;
 constexpr size_t MAX_TRACKS = 999;
 constexpr size_t NAME_CAPACITY = 256;
-// Sized with headroom over Helix and SdFat call depth; the tasks log their
-// high-water marks on exit so these can be tightened from measurements.
+// The tasks log their high-water marks on exit so these can be tightened from
+// measurements. The reader's covers SdFat call depth.
 constexpr uint32_t READER_STACK = 6144;
-constexpr uint32_t DECODER_STACK = 10240;
+// faad2 keeps AAC element state and SBR buffers on the stack: its deepest
+// chain (HE-AAC stereo) measured 57.8 KB with -fstack-usage, minimp3 16.8 KB.
+// That stack is in PSRAM, so the decoder task must not call anything that
+// disables the flash cache, such as flash or NVS writes.
+constexpr uint32_t DECODER_STACK = 64 * 1024;
 constexpr UBaseType_t READER_PRIORITY = 4;
 constexpr UBaseType_t DECODER_PRIORITY = 6;
 constexpr BaseType_t AUDIO_CORE = 0;
@@ -300,8 +305,8 @@ bool AudiobookService::open(const std::string& path) {
       pdPASS) {
     readerAlive_ = false;
     decoderAlive_ = false;
-  } else if (xTaskCreatePinnedToCore(decoderEntry, "abook_dec", DECODER_STACK, this, DECODER_PRIORITY, &decoderTask_,
-                                     AUDIO_CORE) != pdPASS) {
+  } else if (xTaskCreatePinnedToCoreWithCaps(decoderEntry, "abook_dec", DECODER_STACK, this, DECODER_PRIORITY,
+                                             &decoderTask_, AUDIO_CORE, MALLOC_CAP_SPIRAM) != pdPASS) {
     decoderAlive_ = false;
   }
   if (!readerAlive_ || !decoderAlive_) {
@@ -765,7 +770,7 @@ bool AudiobookService::drainPipeline(PcmPipeline& pipeline, const uint32_t gener
 
 void AudiobookService::decoderLoop() {
   {
-    // Scoped so the destructors run before vTaskDelete, which never returns.
+    // Scoped so the destructors run before vTaskDeleteWithCaps, which never returns.
     AudioDecoder decoder;
     PcmPipeline pipeline;
     bool ready = false;
@@ -818,7 +823,7 @@ void AudiobookService::decoderLoop() {
             activeCodec = header.codec;
           }
           if (!ready) {
-            LOG_ERR("ABK", "OOM: decoder for track %u", header.track);
+            LOG_ERR("ABK", "Decoder start failed (format or memory), track %u", header.track);
             reportProblem(PlaybackProblem::Track, header.generation);
           }
           pipeline.reset();
@@ -876,7 +881,8 @@ void AudiobookService::decoderLoop() {
   }
   decoderBusy_ = false;
   decoderAlive_ = false;
-  vTaskDelete(nullptr);
+  // A short-lived ESP-IDF helper task deletes this one and frees its stack.
+  vTaskDeleteWithCaps(nullptr);
 }
 
 }  // namespace audiobook

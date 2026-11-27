@@ -22,6 +22,12 @@ LIBRARY_NOTICES = {
     "SdFat": ("LICENSE.md",),
     "WebSockets": ("LICENSE",),
 }
+# Vendored audio libraries that the audiobook build links.
+VENDORED_NOTICES = {
+    "lib/faad2": ("COPYING", "README"),
+    "lib/minimp3": ("LICENSE",),
+    "lib/sonic": ("LICENSE",),
+}
 
 
 def git(*args: str) -> str:
@@ -61,7 +67,8 @@ def build_license(environment: str, repository: str, packages_dir: Path) -> str:
         raise ValueError("The SDK checkout differs from the recorded source revision.")
     source_url = f"https://github.com/{repository}"
     text = (
-        "CrossPoint Reader firmware licenses\n\n"
+        "EchoPoint firmware licenses\n\n"
+        "EchoPoint is a fork of CrossPoint Reader.\n"
         "Original CrossPoint code uses MIT, except where a file states other terms.\n"
         "Third-party code and assets keep their own licenses.\n"
         "The combined firmware executable uses GPLv3 because it includes wolfSSL.\n\n"
@@ -79,6 +86,10 @@ def build_license(environment: str, repository: str, packages_dir: Path) -> str:
     for path in sorted((PROJECT_DIR / "licenses").iterdir()):
         if path.is_file():
             text += section(f"licenses/{path.name}", path.read_text(encoding="utf-8"))
+    for directory, filenames in VENDORED_NOTICES.items():
+        for filename in filenames:
+            notice = (PROJECT_DIR / directory / filename).read_text(encoding="utf-8")
+            text += section(f"{directory}/{filename}", notice)
 
     dependencies = PROJECT_DIR / ".pio" / "libdeps" / environment
     dependency_sources = []
@@ -128,6 +139,7 @@ def build_license(environment: str, repository: str, packages_dir: Path) -> str:
         *PROJECT_DIR.glob("lib/expat/*.[ch]"),
         *PROJECT_DIR.glob("lib/miniz/third_party/*.[ch]"),
         *PROJECT_DIR.glob("lib/uzlib/src/*.[ch]"),
+        *PROJECT_DIR.glob("lib/sonic/*.[ch]"),
         sdk / "libs/font/FreeInkFont/third_party/stb/stb_truetype.h",
         sdk / "libs/font/FreeInkFont/third_party/freetype/src/base/fthash.c",
         sdk / "libs/font/FreeInkFont/third_party/freetype/include/freetype/internal/fthash.h",
@@ -172,7 +184,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--repository",
-        default=os.environ.get("GITHUB_REPOSITORY", "crosspoint-reader/crosspoint-reader"),
+        default=os.environ.get("GITHUB_REPOSITORY", "hva-org/echopoint"),
     )
     args = parser.parse_args()
     text = build_license(args.env, args.repository, args.packages_dir)

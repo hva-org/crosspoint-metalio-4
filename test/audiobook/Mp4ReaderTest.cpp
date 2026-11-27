@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -60,6 +61,18 @@ TEST(AacConfig, ParsesLcAndExplicitHeAac) {
   EXPECT_EQ(c.objectType, 5);
   EXPECT_EQ(c.coreRate, 22050u);
   EXPECT_EQ(c.channels, 2);
+}
+
+TEST(AacConfig, KeepsTheRawConfigForTheDecoder) {
+  AacConfig c;
+  // LC with backward-compatible SBR signalling (sync extension 0x2B7).
+  const uint8_t lcWithSbr[5] = {0x13, 0x10, 0x56, 0xE5, 0x98};
+  ASSERT_TRUE(parseAacConfig(lcWithSbr, sizeof(lcWithSbr), c));
+  ASSERT_EQ(c.length, sizeof(lcWithSbr));
+  EXPECT_EQ(memcmp(c.bytes, lcWithSbr, sizeof(lcWithSbr)), 0);
+
+  uint8_t tooLong[AacConfig::MAX_BYTES + 1] = {0x13, 0x88};
+  EXPECT_FALSE(parseAacConfig(tooLong, sizeof(tooLong), c));
 }
 
 TEST(AacConfig, RejectsUnsupportedObjectTypes) {

@@ -59,18 +59,17 @@ foreach(test_name Mp3ReaderTest Mp4ReaderTest)
   gtest_discover_tests(${test_name})
 endforeach()
 
-# Vendored Helix decoders (RPSL), built with their stdlib path and host stubs
-# for <Arduino.h>/<pgmspace.h>.
-file(GLOB HELIX_SOURCES ${REPO_ROOT}/lib/helix/src/libhelix-mp3/*.c ${REPO_ROOT}/lib/helix/src/libhelix-aac/*.c)
-add_library(helix_host STATIC ${HELIX_SOURCES})
-target_include_directories(helix_host PUBLIC
-  ${REPO_ROOT}/lib/helix/src
-  ${CMAKE_CURRENT_SOURCE_DIR}/stubs
+# Vendored decoders, built as on the device: faad2 takes its settings from
+# lib/faad2/config.h, and minimp3.c sets the minimp3 build options.
+file(GLOB FAAD2_SOURCES ${REPO_ROOT}/lib/faad2/libfaad/*.c)
+add_library(decoders_host STATIC ${FAAD2_SOURCES} ${REPO_ROOT}/lib/minimp3/src/minimp3.c)
+target_include_directories(decoders_host PUBLIC
+  ${REPO_ROOT}/lib/faad2/include
+  ${REPO_ROOT}/lib/minimp3/src
 )
-target_compile_definitions(helix_host PRIVATE USE_DEFAULT_STDLIB)
-# Helix only knows embedded targets; ARDUINO selects its portable C path.
-target_compile_definitions(helix_host PUBLIC ARDUINO=1)
-target_compile_options(helix_host PRIVATE -w)
+target_include_directories(decoders_host PRIVATE ${REPO_ROOT}/lib/faad2/libfaad)
+target_compile_definitions(decoders_host PRIVATE HAVE_CONFIG_H)
+target_compile_options(decoders_host PRIVATE -w)
 
 add_executable(DecodeChainTest
   DecodeChainTest.cpp
@@ -89,7 +88,7 @@ target_compile_definitions(DecodeChainTest PRIVATE
 )
 target_link_libraries(DecodeChainTest PRIVATE
   crosspoint_test_common
-  helix_host
+  decoders_host
   GTest::gtest_main
   m
 )
