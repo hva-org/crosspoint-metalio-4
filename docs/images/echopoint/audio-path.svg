@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 360" width="1000" height="360" role="img" aria-labelledby="t d">
+  <title id="t">How EchoPoint plays an audiobook</title>
+  <desc id="d">Audio files on the SD card are read, decoded and converted to 16 kHz mono on the ESP32-S3, then sent over I2S to the board's Bluetooth audio module, which plays them on the speaker or sends them to Bluetooth headphones.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#57606a"/>
+    </marker>
+    <style>
+      text { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; fill: #1f2328; }
+      .h { font-size: 15px; font-weight: 600; }
+      .s { font-size: 12.5px; fill: #57606a; }
+      .lbl { font-size: 12px; fill: #57606a; paint-order: stroke; stroke: #ffffff; stroke-width: 5px; stroke-linejoin: round; }
+      .grp { font-size: 13px; font-weight: 600; fill: #4a6fdc; }
+      .line { stroke: #57606a; stroke-width: 1.6; fill: none; marker-end: url(#arrow); }
+      .ctl { stroke: #57606a; stroke-width: 1.4; fill: none; stroke-dasharray: 5 4; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect x="1" y="1" width="998" height="358" rx="16" fill="#ffffff" stroke="#d0d7de"/>
+
+  <!-- SD card -->
+  <rect x="20" y="140" width="112" height="84" rx="10" fill="#f3f0ff" stroke="#7b5fd6" stroke-width="1.5"/>
+  <text x="76" y="174" text-anchor="middle" class="h">SD card</text>
+  <text x="76" y="196" text-anchor="middle" class="s">.mp3 .m4b .m4a</text>
+
+  <!-- ESP32-S3 group -->
+  <rect x="156" y="44" width="578" height="290" rx="14" fill="#f8faff" stroke="#4a6fdc" stroke-width="1.3" stroke-dasharray="6 5"/>
+  <text x="176" y="70" class="grp">ESP32-S3: EchoPoint firmware</text>
+
+  <rect x="186" y="140" width="118" height="84" rx="10" fill="#eef4ff" stroke="#4a6fdc" stroke-width="1.5"/>
+  <text x="245" y="170" text-anchor="middle" class="h">Reader task</text>
+  <text x="245" y="191" text-anchor="middle" class="s">MP3 frames,</text>
+  <text x="245" y="208" text-anchor="middle" class="s">MP4 samples</text>
+
+  <rect x="328" y="140" width="118" height="84" rx="10" fill="#eef4ff" stroke="#4a6fdc" stroke-width="1.5"/>
+  <text x="387" y="170" text-anchor="middle" class="h">Ring buffer</text>
+  <text x="387" y="191" text-anchor="middle" class="s">256 KB</text>
+  <text x="387" y="208" text-anchor="middle" class="s">in PSRAM</text>
+
+  <rect x="470" y="140" width="118" height="84" rx="10" fill="#eef4ff" stroke="#4a6fdc" stroke-width="1.5"/>
+  <text x="529" y="170" text-anchor="middle" class="h">Decoder task</text>
+  <text x="529" y="191" text-anchor="middle" class="s">minimp3 (MP3)</text>
+  <text x="529" y="208" text-anchor="middle" class="s">FAAD2 (AAC)</text>
+
+  <rect x="612" y="140" width="106" height="84" rx="10" fill="#eef4ff" stroke="#4a6fdc" stroke-width="1.5"/>
+  <text x="665" y="170" text-anchor="middle" class="h">PCM pipeline</text>
+  <text x="665" y="191" text-anchor="middle" class="s">mono, 16 kHz</text>
+  <text x="665" y="208" text-anchor="middle" class="s">speed 0.75×–2×</text>
+
+  <rect x="470" y="262" width="248" height="52" rx="10" fill="#eef4ff" stroke="#4a6fdc" stroke-width="1.5"/>
+  <text x="594" y="284" text-anchor="middle" class="h">Audio control</text>
+  <text x="594" y="303" text-anchor="middle" class="s">speaker or headphones, pairing</text>
+
+  <!-- data arrows -->
+  <path d="M132,182 H182" class="line"/>
+  <text x="157" y="166" text-anchor="middle" class="lbl">file data</text>
+  <path d="M304,182 H324" class="line"/>
+  <text x="316" y="128" text-anchor="middle" class="lbl">packets</text>
+  <path d="M446,182 H466" class="line"/>
+  <text x="458" y="128" text-anchor="middle" class="lbl">packets</text>
+  <path d="M588,182 H608" class="line"/>
+  <text x="600" y="128" text-anchor="middle" class="lbl">PCM</text>
+
+  <!-- Audio module -->
+  <rect x="766" y="128" width="100" height="108" rx="10" fill="#fff4e5" stroke="#d08a1e" stroke-width="1.5"/>
+  <text x="816" y="160" text-anchor="middle" class="h">Bluetooth</text>
+  <text x="816" y="178" text-anchor="middle" class="h">audio</text>
+  <text x="816" y="196" text-anchor="middle" class="h">module</text>
+  <text x="816" y="218" text-anchor="middle" class="s">clocks I2S</text>
+
+  <path d="M718,182 H762" class="line"/>
+  <text x="741" y="166" text-anchor="middle" class="lbl">I2S</text>
+  <path d="M718,288 H816 V240" class="ctl"/>
+  <text x="760" y="306" text-anchor="middle" class="lbl">UART2 commands</text>
+
+  <!-- Outputs -->
+  <rect x="886" y="88" width="100" height="60" rx="10" fill="#eaf7ee" stroke="#2f9e57" stroke-width="1.5"/>
+  <text x="936" y="123" text-anchor="middle" class="h">Speaker</text>
+  <rect x="886" y="216" width="100" height="60" rx="10" fill="#eaf7ee" stroke="#2f9e57" stroke-width="1.5"/>
+  <text x="936" y="242" text-anchor="middle" class="h">Bluetooth</text>
+  <text x="936" y="260" text-anchor="middle" class="h">headphones</text>
+
+  <path d="M866,158 L882,126" class="line"/>
+  <text x="862" y="114" text-anchor="middle" class="lbl">mode 1</text>
+  <path d="M866,206 L882,238" class="line"/>
+  <text x="862" y="262" text-anchor="middle" class="lbl">mode 2</text>
+</svg>

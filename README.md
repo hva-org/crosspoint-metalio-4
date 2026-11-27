@@ -1,4 +1,4 @@
-# EchoPoint
+<h1 align="center"><img src="docs/images/echopoint/banner.svg" alt="EchoPoint: read and listen on the Metalio E-Ink 4" width="100%"></h1>
 
 Read and listen on the Metalio E-Ink 4: the CrossPoint e-book reader, plus an
 audiobook player for the built-in speaker and Bluetooth headphones.
@@ -51,6 +51,14 @@ The menus on the device still say "CrossPoint".
 
 Audio goes out as 16 kHz mono, which suits speech more than music.
 Which headphones work depends on the board's Bluetooth audio module.
+
+### How the audio gets out
+
+![EchoPoint reads the book from the SD card, decodes it on the ESP32-S3 and sends 16 kHz mono audio over I2S to the board's Bluetooth audio module, which plays it on the speaker or sends it to Bluetooth headphones.](docs/images/echopoint/audio-path.svg)
+
+The speaker and the headphones both go through the board's Bluetooth audio
+module. EchoPoint sends it commands over UART2 to choose the output and to
+pair headphones, and streams the audio to it over I2S.
 
 ## Everything from CrossPoint
 
