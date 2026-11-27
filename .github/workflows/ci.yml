@@ -93,7 +93,8 @@ jobs:
       fail-fast: false
       matrix:
         # Short board-specific names keep pull-request artifacts easy to identify.
-        # The release workflow applies the published crosspoint-<version>-<device>.bin names.
+        # metalio_eink4-audiobook is the EchoPoint firmware; the release workflow
+        # publishes its release env as echopoint-<version>-metalio_eink4.bin.
         include:
           - env: default
             asset: firmware.bin
@@ -107,6 +108,8 @@ jobs:
             asset: firmware-papermono.bin
           - env: metalio_eink4
             asset: firmware-metalio_eink4.bin
+          - env: metalio_eink4-audiobook
+            asset: firmware-metalio_eink4-audiobook.bin
           - env: eego_a4
             asset: firmware-eego_a4.bin
           - env: picco
