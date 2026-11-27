@@ -20,9 +20,10 @@ adds it for the Metalio E-Ink 4 and keeps the rest of CrossPoint.
 EchoPoint is not affiliated with CrossPoint, Xteink or Metalio.
 The menus on the device still say "CrossPoint".
 
-> [!WARNING]
-> The first release, **2.0.0-echo.1**, is a pre-release. It has not been
-> tested on hardware yet.
+> [!TIP]
+> **[Download the latest firmware](https://github.com/hva-org/echopoint/releases/latest)**:
+> the `echopoint-<version>-metalio_eink4.bin` file on the release page. Release
+> 2.0.0-echo.1 was tested on a Metalio E-Ink 4 on 2026-11-27.
 
 ## What EchoPoint adds
 
@@ -51,6 +52,21 @@ The menus on the device still say "CrossPoint".
 
 Audio goes out as 16 kHz mono, which suits speech more than music.
 Which headphones work depends on the board's Bluetooth audio module.
+
+### Screens
+
+<table>
+  <tr>
+    <td align="center" width="25%"><img src="docs/images/echopoint/screens/player.png" alt="Illustration of the audiobook player: book title, chapter, chapter slider with elapsed and remaining minutes, previous chapter, back 30 seconds, play/pause, forward 30 seconds and next chapter buttons, then speed, chapter list, output and volume controls." width="200"><br><sub><b>Player</b></sub></td>
+    <td align="center" width="25%"><img src="docs/images/echopoint/screens/control-center.png" alt="Illustration of the control center swiped down over a book page: an audiobook card with the title and chapter, a chapter slider, transport buttons, a volume slider and an output button." width="200"><br><sub><b>Control center</b></sub></td>
+    <td align="center" width="25%"><img src="docs/images/echopoint/screens/bt-headphones.png" alt="Illustration of the Bluetooth Headphones screen: Audio Output set to Headphones, My Headphones connected, Forget Headphones, Scan for Headphones, Test Sound and Module Log." width="200"><br><sub><b>Bluetooth headphones</b></sub></td>
+    <td align="center" width="25%"><img src="docs/images/echopoint/screens/chapters.png" alt="Illustration of the chapter list with Chapter 3 selected." width="200"><br><sub><b>Chapter list</b></sub></td>
+  </tr>
+</table>
+
+These are illustrations, not device screenshots. They were drawn from the
+firmware's layout code and English strings, so the elements and labels match
+the device; fonts and gray shading differ slightly.
 
 ### How the audio gets out
 
@@ -84,8 +100,8 @@ them.
 
 ## Install
 
-Download the firmware from
-[Releases](https://github.com/hva-org/echopoint/releases). Each release has
+Download the firmware from the
+[latest release](https://github.com/hva-org/echopoint/releases/latest). Each release has
 one firmware file, `echopoint-<version>-metalio_eink4.bin` (for example
 `echopoint-2.0.0-echo.1-metalio_eink4.bin`), and a `LICENSE` file.
 
@@ -102,8 +118,7 @@ different device.
 
 **Updates over Wi-Fi**: **Settings → System → Check for Updates** installs
 the newest full release from this repository. It does not offer pre-releases;
-install those from the SD card. Until the first full release exists, the
-check reports a failure instead of "no update".
+install those from the SD card.
 
 **First install from the stock Metalio firmware**: there is no web installer.
 Build the release and flash it over USB with PlatformIO; see
