@@ -1,300 +1,182 @@
-# CrossPoint Reader
-
-[![Fund contributors](https://img.shields.io/badge/%F0%9F%91%91_Fund_contributors-royalty.dev-BB953A?style=for-the-badge&labelColor=1a1a1a)](https://app.royalty.dev/crosspoint-reader/crosspoint-reader)
-
-CrossPoint is open-source e-reader firmware - community-built, fully hackable, free forever. It's maintained by a growing community of developers and readers who believe your device should do what you want - not what a manufacturer decided for you.
-
-### Now running on:
-
-- **ESP32C3-based** Xteink X4 and X3.
-- **ESP32S3-based** Xteink X4Pro and X4Classic, Seeed reTerminal Sticky, M5PaperMono, Metalio E-Ink 4, EEGOREAD A4 and Boox Picco.
-
-Check [our Devices page](https://crosspointreader.com/devices) for the full list.
-
-![CrossPoint Reader running on Xteink device](./docs/images/cover.jpg)
-
-> If you're planning to buy an Xteink device, consider purchasing an **X3/X4 Developer Edition** through https://crosspointreader.com. CrossPoint receives a small share of each sale, helping fund development costs.
-
-## What can CrossPoint do?
-
-- **Reader engine**: EPUB 2/3 rendering with embedded-style option, image handling, hyphenation, kerning, adaptive table layouts, native CJK ruby annotations, chapter navigation, footnotes, bookmarks, dictionary lookups ([StarDict](docs/dictionary.md)), go-to-percent, auto page turn, orientation control, focus reading, KOReader progress sync and more.
-
-- **Various formats**: native handling for `.epub`, `.xtc/.xtch`, `.txt`, and `.bmp`.
-
-- **Touch reading**: follow EPUB links and look up words in the dictionary on touch-enabled devices.
-
-- **Highlights and clippings**: highlight text in EPUBs and save excerpts as clippings. Use the reader menu on button devices, or hold a word and drag the selection handles on touch devices. Look up selected words or phrases in the dictionary. Enable Sync Clippings to sync saved excerpts through a compatible CrossPoint Sync server. See [Clippings and Highlights](USER_GUIDE.md#53-clippings-and-highlights).
-
-- **Screenshots.**
-
-- **Custom fonts**: install your favorite fonts on the SD card.
-
-- **Tilt page turn (X3 and Sticky)**.
-
-- **Bluetooth page turners**: pair a remote under Settings → Connectivity → Bluetooth Page Turner. Map short and long presses to page turns, chapter navigation, the reader menu, or clipping selection.
-
-- **USB Drive mode (X4Pro)**: access the SD card as USB mass storage.
-
-- **Library workflow**: indexed title/author search, recently-added and alphabetical views, multilingual grouping, folder browser, recent books, and SD-cache management.
-
-- **Wireless workflows**:
-  
-  - File transfer web UI
-  - EPUB Optimizer
-  - Web settings UI/API (edit many device settings from browser)
-  - WebSocket fast uploads
-  - WebDAV handler
-  - AP mode (hotspot) and STA mode (join existing Wi-Fi), both with QR helpers
-  - Calibre wireless connect flow
-  - OPDS browser with saved servers (up to 8), search, pagination, and direct download; hold Back for one second and release in a catalog to return to the main menu
-  - OTA update checks and installs from GitHub releases
-
-- **Customization**: night mode, multiple themes (Classic, Lyra, Lyra Extended, RoundedRaff), sleep screen modes including transparent overlays, front/side button remapping, status bar controls, power-button behavior, refresh cadence, and more.
-
-- **Localization**: 34 UI languages and counting, including CJK font fallback and RTL support.
-
-- **SD card plugins**: install plugins for book catalogs, downloads, and tools in the device's web interface. Enable Plugins under Settings → Connectivity to show them on Home. On-device plugins use existing firmware screens and operations. JavaScript runs in a browser on your phone or computer, and its page must stay open while it works. Plugins follow [CrossPoint's reading-focused scope](SCOPE.md#out-of-scope). See the [plugin guide](docs/sd-plugins.md).
-
-### Coming soon:
-
-- More themes.
-
-- Much more! stay tuned.
-
----
-
-## USB-locked devices (Xteink Unlocker)
-
-Some Xteink units purchased from third-party stores (e.g. AliExpress) ship with USB flashing locked from the factory.
-If your device is locked, you will need to use the **Xteink Unlocker** tool available at
-https://crosspointreader.com/#unlock-tool before you can flash CrossPoint.
-
-**You do not need this tool if you bought your device directly from xteink.com.** Those units are not locked.
-
-**Not sure if your device is locked?** Power it on, connect the USB-C cable, and try flashing via the web flasher first (see
-[Install firmware](#install-firmware) below). If the browser's serial device picker does not show your device, try a different
-USB port or browser before assuming the device is locked. Only reach for the unlocker if the device still doesn't appear.
-
-> ### ⚠️ WARNING: READ THIS BEFORE USING THE UNLOCKER ⚠️
-> 
-> **The only officially supported firmwares in the unlock tool are CrossPoint and CrossInk.**
-> 
-> Flashing any other firmware on a USB-locked device may **permanently brick the device** or leave it **permanently
-> stuck on that firmware with no recovery path**. Once USB flashing is re-locked, your only way back is via OTA, and if
-> the firmware you flashed doesn't support OTA, **there is no way out**.
-
-## Install firmware
-
-### Web installer (recommended)
-
-1. Connect your device to your computer via USB-C and wake/unlock the device
-2. Go to https://crosspointreader.com/#flash-tools, select your device (X3, X4, Xteink X4Pro, Seeed reTerminal Sticky, or M5PaperMono), and choose an official CrossPoint release.
-
-### Web installer (specific version)
-
-1. Connect your device to your computer via USB-C and wake/unlock the device
-2. Download the firmware file for your device from [Releases](https://github.com/crosspoint-reader/crosspoint-reader/releases), or compile yourself.
-3. Go to https://crosspointreader.com/#flash-tools, select your device, click "Custom .bin" and upload the firmware file.
-
-### Revert to Official Firmware
-
-To revert to the official firmware, you can also flash the latest official firmware using https://crosspointreader.com/#flash-tools.
-
-### Command line
-
-1. Install [`esptool`](https://github.com/espressif/esptool):
-
-```bash
-pip install esptool
-```
-
-2. Download the firmware file for your device from the [releases page](https://github.com/crosspoint-reader/crosspoint-reader/releases).
-3. Connect your device via USB-C.
-4. Find the device port. On Linux, run `dmesg` after connecting. On macOS:
-
-```bash
-log stream --predicate 'subsystem == "com.apple.iokit"' --info
-```
-
-5. Flash an X3 or X4:
-
-```bash
-esptool.py --chip esp32c3 --port /dev/ttyACM0 --baud 921600 write_flash 0x10000 /path/to/firmware.bin
-```
-
-   Flash an Xteink X4Pro, Seeed reTerminal Sticky, or M5PaperMono:
-
-```bash
-esptool.py --chip esp32s3 --port /dev/ttyACM0 --baud 921600 write_flash 0x10000 /path/to/firmware.bin
-```
-
-### Manual
-
-See [Development quick start](#development-quick-start) below.
-
----
-
-## Custom SD-card fonts
-
-On devices with external RAM enabled in CrossPoint, copy `.ttf`, `.otf`, or `.ttc` files to the SD card and select them as reader fonts. Put one file in `/fonts/` or `/.fonts/`, or put one family's files in a subfolder. See the [SD card font guide](./docs/sd-card-fonts.md) for the folder layout and styles.
-
-On other devices, convert the font to `.cpfont` first. `.cpfont` files also work on devices with external RAM enabled and have better performance. No firmware reflash is needed to add fonts.
-
-To make `.cpfont` files:
-
-1. Go to https://crosspointreader.com/fonts and open the "SD-card font builder" form.
-2. Upload up to four styles (regular, bold, italic, bold-italic), set the family name, point sizes, and Unicode range.
-3. Download the generated `.cpfont` files.
-4. Copy them to your SD card under `/fonts/YourFont/` (or `/.fonts/YourFont/` to hide the folder).
-5. Select the font on the device from the font settings.
-
-Conversion runs the firmware repo's `lib/EpdFont/scripts/fontconvert_sdcard.py` script unmodified, so output matches a local host build.
-
----
-
-## Documentation
-
-- [User Guide](./USER_GUIDE.md)
-- [Web server usage](./docs/webserver.md)
-- [Web server endpoints](./docs/webserver-endpoints.md)
-- [Project scope](./SCOPE.md)
-- [Contributing docs](./docs/contributing/README.md)
-- [Touch and UI development](./docs/contributing/touch-and-ui.md) - how to build new screens on the FreeInkUI activity bases (UiListActivity and friends), plus build envs for the non-Xteink touch devices
-
----
-
-## Development quick start
-
-### Prerequisites
-
-- [pioarduino PlatformIO Core](https://github.com/pioarduino/platformio-core) or [VS Code + pioarduino IDE](https://github.com/pioarduino/pioarduino-vscode-ide)
-- Python 3.8+
-- `clang-format` 21
-- USB-C cable supporting data transfer
-
-### Setup
-
-```bash
-git clone --recursive https://github.com/crosspoint-reader/crosspoint-reader
-cd crosspoint-reader
-
-# if cloned without --recursive:
-git submodule update --init --recursive
-```
-
-### Nix/NixOS
-
-Nix/NixOS users can enter the development shell with either `nix develop` (flakes) or `nix-shell`:
-
-```bash
-nix develop -f nix
-# or
-nix-shell nix
-```
-
-To flash a connected ESP32-C3 device, enable PlatformIO's udev rules in your NixOS configuration:
-
-```nix
-services.udev.packages = with pkgs; [ platformio-core.udev ];
-```
-
-After rebuilding the system configuration, reconnect the device or reload udev rules.
-
-### Build / flash / monitor
-
-```bash
-pio run --target upload
-```
-
-### Contributor pre-PR checks
-
-```bash
-./bin/clang-format-fix
-pio check -e default
-pio run -e default
-```
-
-### Debugging
-
-After flashing the new features, it’s recommended to capture detailed logs from the serial port.
-
-First, make sure all required Python packages are installed:
-
-```python
-python3 -m pip install pyserial colorama matplotlib
-```
-
-After that run the script:
+# EchoPoint
+
+Read and listen on the Metalio E-Ink 4: the CrossPoint e-book reader, plus an
+audiobook player for the built-in speaker and Bluetooth headphones.
+
+[![Latest release](https://img.shields.io/github/v/release/hva-org/echopoint?include_prereleases&label=release)](https://github.com/hva-org/echopoint/releases)
+[![CI (build)](https://img.shields.io/github/actions/workflow/status/hva-org/echopoint/ci.yml?branch=develop&label=CI%20%28build%29)](https://github.com/hva-org/echopoint/actions/workflows/ci.yml?query=branch%3Adevelop)
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](licenses/README.md)
+
+EchoPoint is an unofficial fork of
+[CrossPoint Reader](https://github.com/crosspoint-reader/crosspoint-reader),
+the open-source e-reader firmware. It is built on the
+[FreeInk SDK](https://github.com/Free-Ink/freeink-sdk) and runs on one device:
+the **Metalio E-Ink 4** (ESP32-S3, 16 MB flash, 8 MB PSRAM).
+
+CrossPoint focuses on reading and leaves other features to forks
+(see [SCOPE.md](SCOPE.md)). Audio playback is outside that focus, so EchoPoint
+adds it for the Metalio E-Ink 4 and keeps the rest of CrossPoint.
+
+EchoPoint is not affiliated with CrossPoint, Xteink or Metalio.
+The menus on the device still say "CrossPoint".
+
+> [!WARNING]
+> The first release, **2.0.0-echo.1**, is a pre-release. It has not been
+> tested on hardware yet.
+
+## What EchoPoint adds
+
+- **Audiobook player** for `.mp3`, `.m4b` and `.m4a` files (MP3, AAC-LC and
+  HE-AAC; mono or stereo).
+  - A folder of MP3 files is one book. Its files play in name order, with
+    numbers sorted by value ("Part 2" before "Part 10"), and each file is a
+    chapter. An M4B or M4A file uses the chapters stored in it.
+  - Play and pause, 30-second skips, previous and next chapter, a chapter
+    list, and a slider to move within the current chapter.
+  - Speed from 0.75× to 2× in steps of 0.25×, without changing the pitch.
+  - Volume slider and the device's volume keys.
+  - Each book remembers its position.
+  - The book keeps playing while you read or browse. The device stays awake
+    while a book plays. After three hours without input, the book pauses so
+    the device can sleep.
+- **Speaker output** through the board's audio module.
+- **Bluetooth headphones**: scan, pick and save a pair, then switch between the
+  speaker and the headphones from the control center or the Bluetooth
+  Headphones screen. The output button in the player opens that screen.
+- **Control center card**: swipe down from the top edge to see the book and
+  chapter, play or pause, skip, move in the chapter, change the volume and
+  switch the output.
+- **Power button**: set a short click or a double click to play or pause the
+  open book from any screen.
+
+Audio goes out as 16 kHz mono, which suits speech more than music.
+Which headphones work depends on the board's Bluetooth audio module.
+
+## Everything from CrossPoint
+
+EchoPoint keeps the CrossPoint reader. On the Metalio E-Ink 4 this includes:
+
+- **Reader engine**: EPUB 2/3 with images, hyphenation, kerning, tables, CJK
+  ruby, footnotes, bookmarks, go-to-percent, auto page turn, orientation and
+  focus reading. It also opens `.xtc`/`.xtch`, `.txt` and `.bmp` files.
+- **Touch**: follow links, look up words in a
+  [StarDict dictionary](docs/dictionary.md), highlight text and save clippings.
+- **Custom fonts** from the SD card (see [SD card fonts](docs/sd-card-fonts.md)).
+- **Library**: title and author search, recent and alphabetical views, and a
+  folder browser.
+- **Wireless**: file transfer web page, WebDAV, Calibre wireless, OPDS
+  catalogs, settings in the browser, and KOReader progress sync.
+- **USB Drive mode** for the SD card, and **Bluetooth page turners**.
+- **Customization**: themes, sleep screens, button mapping, more than 30 UI
+  languages, and [SD card plugins](docs/sd-plugins.md).
+
+The [CrossPoint project](https://github.com/crosspoint-reader/crosspoint-reader#readme)
+has the full feature list. The [User Guide](USER_GUIDE.md) explains how to use
+them.
+
+## Install
+
+Download the firmware from
+[Releases](https://github.com/hva-org/echopoint/releases). Each release has
+one firmware file, `echopoint-<version>-metalio_eink4.bin` (for example
+`echopoint-2.0.0-echo.1-metalio_eink4.bin`), and a `LICENSE` file.
+
+**If the device already runs EchoPoint or CrossPoint** (a version with
+**SD Card Firmware Update**):
+
+1. Copy the `.bin` file to the SD card.
+2. On the device, open **Settings → System → SD Card Firmware Update** and
+   pick the file.
+3. Keep the device powered until it restarts.
+
+The update refuses CrossPoint or EchoPoint firmware that was built for a
+different device.
+
+**Updates over Wi-Fi**: **Settings → System → Check for Updates** installs
+the newest full release from this repository. It does not offer pre-releases;
+install those from the SD card. Until the first full release exists, the
+check reports a failure instead of "no update".
+
+**First install from the stock Metalio firmware**: there is no web installer.
+Build the release and flash it over USB with PlatformIO; see
+[Build from source](#build-from-source). This repository does not document a
+way back to the stock firmware.
+
+## Using audiobooks
+
+1. Copy your books to the SD card, for example with USB Drive mode or the file
+   transfer web page. Give each MP3 book its own folder. An M4B or M4A file is
+   a book on its own, wherever it is.
+2. Open **Browse Files** and select a book file. The player opens and starts
+   playing. A book you played before continues where it stopped.
+3. In the player, the large round button plays or pauses. **Confirm** also
+   plays or pauses, and **Up**/**Down** change the volume. **Back** leaves the
+   player; the book keeps playing.
+4. To use headphones, open **Settings → Connectivity → Bluetooth Headphones**
+   and choose **Scan for Headphones**. Select your headphones; once they
+   connect, they are saved and become the output.
+5. To go back to the speaker, tap the output button in the control center, or
+   select **Audio Output** in the Bluetooth Headphones screen.
+
+See [Audiobooks in the User Guide](USER_GUIDE.md#39-audiobooks-echopoint) for
+the details.
+
+## Build from source
+
+Set up the toolchain first; see
+[Getting Started](docs/contributing/getting-started.md). Then build a release
+and flash it over USB (replace `2.0.0-echo.1` with the release you want):
 
 ```sh
-# For Linux
-# This was tested on Debian and should work on most Linux systems.
-python3 scripts/debugging_monitor.py
-
-# For macOS
-python3 scripts/debugging_monitor.py /dev/cu.usbmodem2101
+git clone --recursive https://github.com/hva-org/echopoint.git
+cd echopoint
+git checkout 2.0.0-echo.1
+git submodule update --init --recursive
+pio run -e metalio_eink4-audiobook-gh_release -t upload
 ```
 
-Minor adjustments may be required for Windows.
+This gives the same firmware as the release file, so **Check for Updates**
+offers the next full release. For development, build
+`metalio_eink4-audiobook` instead: it adds debug logging and reports a
+`-dev-<branch>-<sha>` version.
 
----
+## Releases
 
-## Internals
+How a release is made:
 
-CrossPoint Reader is pretty aggressive about caching data down to the SD card to minimise RAM usage. The ESP32-C3 only has ~380KB of usable RAM, so we have to be careful. A lot of the decisions made in the design of the firmware were based on this constraint.
+1. Set the version in `platformio.ini`, section `[crosspoint]`. The format is
+   `<upstream version>-echo.<n>`, for example `2.0.0-echo.1` (CrossPoint
+   2.0.0, EchoPoint build 1).
+2. Publish a GitHub release whose tag is exactly that version, without a `v`.
+   Mark untested builds as pre-releases.
+3. The [release workflow](.github/workflows/release.yml) builds the firmware
+   and attaches `echopoint-<version>-metalio_eink4.bin` and `LICENSE` to the
+   release.
 
-### Data caching
+Check for Updates on the device only sees full releases, so a pre-release
+reaches only people who install it themselves.
 
-The first time chapters of a book are loaded, they are cached to the SD card. Subsequent loads are served from the
-cache. This cache directory exists at `.crosspoint` on the SD card. The structure is as follows:
+## License
 
-```text
-.crosspoint/
-├── epub_<hash>/         # one directory per book, named by content hash
-│   ├── progress.bin     # reading position (chapter, page, etc.)
-│   ├── cover.bmp        # generated cover image
-│   ├── book.bin         # metadata: title, author, spine, TOC
-│   ├── css_rules.cache  # parsed CSS rule cache
-│   ├── img_*            # rendered image cache files
-│   └── sections/        # per-chapter layout cache
-│       ├── 0.bin
-│       ├── 1.bin
-│       └── ...
-├── settings.json        # device settings
-├── state.json           # resume/runtime state
-└── recent.json          # recent books list
-```
+- CrossPoint's original code uses the MIT license in [LICENSE](LICENSE).
+- The combined firmware is GPLv3, because it includes wolfSSL.
+- The audiobook player uses [minimp3](https://github.com/lieff/minimp3)
+  (CC0-1.0), [FAAD2](https://github.com/knik0/faad2) (GPL-2.0-or-later) and
+  [Sonic](https://github.com/waywardgeek/sonic) (Apache-2.0).
 
-Removing `/.crosspoint` clears all cached metadata and forces a full regeneration on next open. Book deletes, overwrites, and moves done through the firmware or web UI clear or re-key matching caches; manual SD-card edits may leave stale cache directories behind.
+[licenses/README.md](licenses/README.md) lists all third-party code and
+explains how to get the source for a release.
 
-For more details on the internal file structures, see the [file formats document](./docs/file-formats.md).
+## Credits
 
----
-
-## Contributing
-
-Contributions are welcome. If you're new to the codebase, start with the [contributing docs](./docs/contributing/README.md). For things to work on, check the [ideas discussion board](https://github.com/crosspoint-reader/crosspoint-reader/discussions/categories/ideas) — leave a comment before starting so we don't duplicate effort.
-
-Everyone here is a volunteer, so please be respectful and patient. For governance and community expectations, see [GOVERNANCE.md](./GOVERNANCE.md).
-
----
-
-## Community forks
-
-One of the best things about open source is that anyone can take the code in a different direction. If you need something outside CrossPoint's [scope](./SCOPE.md), check out the community forks:
-
-- [CrossInk](https://github.com/uxjulia/CrossInk) — UX focused with minimal reading stats and broader customizations for the reading experience.
-
-- [papyrix-reader](https://github.com/bigbag/papyrix-reader) — Adds FB2 and MD format support. Actively maintained with Arabic script support. Custom themes.
-
-- [inx](https://github.com/obijuankenobiii/inx) — Completely reimagines the user interface with tabbed navigation.
-
-- [Witch(hunt) Reader](https://github.com/jpirnay/witchhunt-reader) — More faithful CSS styling and background work for slightly snappier interaction. Weather information panel. Markdown support.
-
-**Note:** Many of these features will make their way into CrossPoint over time. Each project chooses its own priorities and tradeoffs.
-
-Want to build your own device? Be sure to check out the [Silkscreen](https://silkscreenreader.com) project or [OnePage Reader](https://github.com/MoveCall/onepage-reader).
-
----
-
-CrossPoint Reader is **not affiliated with Xteink or any device manufacturer**.
+- The [CrossPoint Reader](https://github.com/crosspoint-reader/crosspoint-reader)
+  contributors, who wrote the reader that EchoPoint is built on. CrossPoint
+  funds its contributors through
+  [royalty.dev](https://app.royalty.dev/crosspoint-reader/crosspoint-reader).
+- The [FreeInk SDK](https://github.com/Free-Ink/freeink-sdk), for the Metalio
+  E-Ink 4 board support and shared UI.
+- [minimp3](https://github.com/lieff/minimp3) by lieff (MP3 decoding).
+- [FAAD2](https://github.com/knik0/faad2) (AAC decoding). Code from FAAD2 is
+  copyright (c) Nero AG, www.nero.com.
+- [Sonic](https://github.com/waywardgeek/sonic) by Bill Cox (speed change
+  without pitch change).

@@ -2,6 +2,9 @@
 
 Welcome to the **CrossPoint** firmware. This guide outlines the hardware controls, navigation, and reading features of the device.
 
+> [!NOTE]
+> EchoPoint uses this CrossPoint guide. Its additions are in [3.9 Audiobooks](#39-audiobooks-echopoint). The device menus still say CrossPoint, and some sections describe other devices.
+
 - [CrossPoint User Guide](#crosspoint-user-guide)
   - [1. Hardware Overview](#1-hardware-overview)
     - [Button Layout](#button-layout)
@@ -37,7 +40,7 @@ Welcome to the **CrossPoint** firmware. This guide outlines the hardware control
       - [Cover settings](#cover-settings)
       - [Custom images](#custom-images)
     - [3.8 Custom Fonts (SD Card)](#38-custom-fonts-sd-card)
-    - [3.9 Audiobooks (Metalio E-Ink 4 audiobook build only)](#39-audiobooks-metalio-e-ink-4-audiobook-build-only)
+    - [3.9 Audiobooks (EchoPoint)](#39-audiobooks-echopoint)
   - [4. Reading Mode](#4-reading-mode)
     - [Page Turning](#page-turning)
     - [Chapter Navigation](#chapter-navigation)
@@ -209,7 +212,7 @@ Books cannot be removed from your device through Calibre. Use the web interface 
 
 ### 3.6 Settings
 
-Settings are grouped into **System**, **Display**, **Reader**, **Controls**, **Library**, and **Connectivity**. System contains language, keyboard layouts, hidden-file visibility, file-extension visibility, Clock (where available), firmware updates, and About. Library contains Use Book Metadata, Hide New Files in Recent, Clear Read Books from Recent List, Move Finished Books to Read Folder, and Refresh Library. Time to Sleep is under Display; Clear Reading Cache is under Reader. Connectivity contains Wi-Fi, Bluetooth Page Turner, Bluetooth Headphones (Metalio audiobook build only), CrossPoint Sync, OPDS, and the Plugins toggle. The options below describe these settings.
+Settings are grouped into **System**, **Display**, **Reader**, **Controls**, **Library**, and **Connectivity**. System contains language, keyboard layouts, hidden-file visibility, file-extension visibility, Clock (where available), firmware updates, and About. Library contains Use Book Metadata, Hide New Files in Recent, Clear Read Books from Recent List, Move Finished Books to Read Folder, and Refresh Library. Time to Sleep is under Display; Clear Reading Cache is under Reader. Connectivity contains Wi-Fi, Bluetooth Page Turner, Bluetooth Headphones (EchoPoint only), CrossPoint Sync, OPDS, and the Plugins toggle. The options below describe these settings.
 
 #### 3.6.1 Display
 
@@ -354,7 +357,7 @@ Side buttons, and Taps and gestures where supported by the device. See the
 
 - **Bluetooth Page Turner** (**Settings → Connectivity**): Enable Bluetooth, then open **Scan for Remotes** to connect a page turner. **Paired Remotes** lists saved remotes; selecting a row marked **Forget** removes it. Once connected, open **Map Buttons**, choose a page, chapter, Confirm, Back, reader menu, or clipping action, and press the remote button within 15 seconds. Release the button within 15 seconds: a hold of at least 0.7 seconds is mapped separately from its tap. If the remote never reports a release, learning waits 15 seconds and saves the press as a tap. Hold Confirm on an action, or long-press its row, to clear it. Back cancels learning or returns to the Bluetooth menu. Mapping is optional: without custom mappings, the default remote controls remain available. Each button gesture maps to one action; assigning it again replaces its previous action. Confirm and Back act like the device buttons while reading and in the reader list menu. Next/Previous Page navigate items while a reader menu is open and turn pages when it is closed. Bluetooth can also be toggled from the reader list menu or the toolbar’s **More** menu.
 
-- **Bluetooth Headphones** (**Settings → Connectivity**, Metalio audiobook build only): See [Audiobooks](#39-audiobooks-metalio-e-ink-4-audiobook-build-only).
+- **Bluetooth Headphones** (**Settings → Connectivity**, EchoPoint only): See [Audiobooks](#39-audiobooks-echopoint).
 
 - **CrossPoint Sync**: Settings for syncing book progress with CrossPoint Sync or a compatible KOSync server. **Smart sync** is the default for new configurations and auto-resolves simple push/pull decisions. Existing credential files retain **Ask every time** when migrated; you can switch Sync Behavior at any time if you prefer manual confirmation.
 
@@ -366,7 +369,7 @@ Side buttons, and Taps and gestures where supported by the device. See the
 
 - **Refresh Library** (**Settings → Library**): Rescan the SD card for books while preserving the arrival history of books already in the index.
 
-- **Check for updates**: Check for Crosspoint firmware updates over Wi-Fi. Firmware can also be updated without a USB connection by placing a `firmware.bin` file on the SD card. Neither option is available on the BOOX Picco, which is updated over USB.
+- **Check for updates**: Check for firmware updates over Wi-Fi. EchoPoint installs only full EchoPoint releases this way (see [Audiobooks](#39-audiobooks-echopoint)). Firmware can also be updated without a USB connection by copying a firmware `.bin` file to the SD card and using **SD Card Firmware Update**. Neither option is available on the BOOX Picco, which is updated over USB.
 
 - **Plugins** (**Settings → Connectivity**): Enable or disable SD-card plugins. Clean installs start disabled; upgrades with existing plugins are kept enabled automatically. Disabling plugins leaves all plugin files on the SD card but stops plugin discovery and execution until they are enabled again.
   - Enabling plugins immediately adds **Plugins** to the Home screen, even when no plugins are installed yet. Sideloaded SD-card plugins work without Plugin Hub.
@@ -646,20 +649,20 @@ See [docs/sd-card-fonts.md](./docs/sd-card-fonts.md) for full installation detai
 
 ---
 
-### 3.9 Audiobooks (Metalio E-Ink 4 audiobook build only)
+### 3.9 Audiobooks (EchoPoint)
 
-Only the `metalio_eink4-audiobook` firmware build has the audiobook player. That build is for personal use and is not distributed (see `lib/helix/README.md`).
+The audiobook player is part of EchoPoint for the Metalio E-Ink 4: the release firmware (`echopoint-<version>-metalio_eink4.bin`) and local `metalio_eink4-audiobook` builds. CrossPoint firmware does not have it.
 
-- **Opening a book**: `.mp3`, `.m4b` and `.m4a` files appear in **Browse Files**. An MP3 inside a folder plays all of that folder's MP3 files, in name order, as one book. An MP3 at the card root, or an M4B/M4A file, is a book on its own. Books you open appear in the Home screen's recent books and the Library's **Recent** tab.
-- **Player**: The large round button plays or pauses (filled while playing, outlined while paused); beside it are 30-second skips and the previous and next chapter. The previous-chapter button restarts the current chapter once it has played for a few seconds. Drag the chapter slider, or tap a point on it, to move within the current chapter: while your finger is down it shows the time you will land on, and playback moves there when you lift it. Under the buttons (beside them in landscape) are the speed (**−** and **+** step through 0.75×, 1×, 1.25×, 1.5×, 1.75× and 2×, keeping the pitch), the chapter list, the output (the icon shows the speaker or headphones) and the volume slider. **Confirm** plays or pauses, and **Up**/**Down** (the volume keys) change the volume. Times are shown in whole minutes, and to the second while you drag.
+- **Opening a book**: `.mp3`, `.m4b` and `.m4a` files appear in **Browse Files**. An MP3 inside a folder plays all of that folder's MP3 files, in name order, as one book. An MP3 at the card root, or an M4B/M4A file, is a book on its own. Selecting a book file opens the player and starts playing. A book you played before continues where it stopped; otherwise a folder book starts at the file you selected. Books you open appear in the Home screen's recent books and the Library's **Recent** tab.
+- **Player**: The large round button plays or pauses (filled while playing, outlined while paused); beside it are 30-second skips and the previous and next chapter. The previous-chapter button restarts the current chapter once it has played for a few seconds. Drag the chapter slider, or tap a point on it, to move within the current chapter: while your finger is down it shows the time you will land on, and playback moves there when you lift it. Under the buttons (beside them in landscape) are the speed (**−** and **+** step through 0.75×, 1×, 1.25×, 1.5×, 1.75× and 2×, keeping the pitch), the chapter list, the output button (its icon shows the speaker or headphones; it opens the Bluetooth Headphones screen) and the volume slider. **Confirm** plays or pauses, and **Up**/**Down** (the volume keys) change the volume. Times are shown in whole minutes, and to the second while you drag.
 - **Background playback**: **Back** leaves the player and the book keeps playing. Open it again from the Home screen or the Library's **Recent** tab to return to the player. The device does not go to sleep on its own while a book plays; after three hours without a button press or touch, playback pauses so it can.
 - **Saved position**: The position is saved when you pause, every 30 seconds while playing, and when the device sleeps. Playback stops when the device sleeps or restarts, when USB Drive or a firmware update starts, and when the book's files are renamed or deleted. A finished book starts again from the beginning.
 - **Control center**: Swipe down from the top edge. The card at the top opens the player: for the book that is open, or your most recent audiobook that is still on the card, which opens paused (with none, it opens the file browser). Its second line shows the chapter and playback state, or what the headphones connection is doing. While a book is open there are also the chapter slider and the previous chapter, 30-second back and forward skips, play/pause (also **Confirm**) and next chapter buttons. The volume slider (also **Up**/**Down**) ends with an output button that switches between the speaker and the saved headphones. A book that is playing pauses during a switch and continues once the new output is ready; if the headphones do not connect, it stays paused. With no headphones saved, the output button opens the Bluetooth Headphones screen.
 - **Power button**: In **Settings → Controls → Power button**, set **Short click** or **Double click** to **Play/Pause Audiobook**. It plays or pauses the open book from any screen, including while reading; with no book open it does nothing. Holding the button still puts the device to sleep.
 - **Bluetooth headphones** (**Settings → Connectivity → Bluetooth Headphones**): Choose **Scan for Headphones** and select your headphones; once they connect they are saved and become the output. A scan pauses a book that is playing. Leaving the scan without picking returns to the output you had. Select the saved headphones to connect them and use them as the output; **Forget Headphones** forgets them and switches back to the speaker. **Audio Output** switches between the speaker and the saved headphones (with none saved, it starts a scan). **Test Sound** plays a short tone on the speaker, or on connected headphones, while no book is playing. **Module Log** shows whether the last check found the module supplying the audio clock, and lists the last commands sent to it and its replies, for troubleshooting. With headphones selected, playback starts once they connect. Which headphones work depends on the board's audio module.
 - **Sound quality**: Output is 16 kHz mono, which suits speech more than music.
-- **Debug log**: **Settings → System → Debug Log to SD Card** writes every log line, including the Bluetooth module's commands and replies, to `/.crosspoint/debug.log` on the card about once a second. Above 2 MB the file becomes `debug.old.log` and a new one starts. Turn it off when you no longer need it.
-- **Updates**: Updating over Wi-Fi installs the standard firmware, which has no audiobook player. Build and flash `metalio_eink4-audiobook` again to get it back.
+- **Debug log**: **Settings → System → Debug Log to SD Card** writes the firmware's error and information lines to `/.crosspoint/debug.log` on the card about once a second. Above 2 MB the file becomes `debug.old.log` and a new one starts. Turn it off when you no longer need it. Release firmware leaves out debug lines; the Bluetooth module's commands and replies are on the **Module Log** screen.
+- **Updates**: **Settings → System → Check for Updates** installs the newest full EchoPoint release from [hva-org/echopoint](https://github.com/hva-org/echopoint/releases). It does not offer pre-releases, and until the first full release exists it reports a failure instead of "no update". To install a pre-release, copy its `.bin` file to the SD card and use **Settings → System → SD Card Firmware Update**.
 
 ## 4. Reading Mode
 
