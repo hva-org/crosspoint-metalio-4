@@ -1,5 +1,15 @@
 <h1 align="center"><img src="docs/images/echopoint/banner.svg" alt="EchoPoint: read and listen on the Metalio E-Ink 4" width="100%"></h1>
 
+<table>
+  <tr>
+    <td align="center" width="25%"><img src="docs/images/echopoint/screens/player.png" alt="Illustration of the audiobook player: book title, chapter, chapter slider with elapsed and remaining minutes, previous chapter, back 30 seconds, play/pause, forward 30 seconds and next chapter buttons, then speed, chapter list, output and volume controls." width="200"><br><sub><b>Player</b></sub></td>
+    <td align="center" width="25%"><img src="docs/images/echopoint/screens/control-center.png" alt="Illustration of the control center swiped down over a book page: an audiobook card with the title and chapter, a chapter slider, transport buttons, a volume slider and an output button." width="200"><br><sub><b>Control center</b></sub></td>
+    <td align="center" width="25%"><img src="docs/images/echopoint/screens/bt-headphones.png" alt="Illustration of the Bluetooth Headphones screen: Audio Output set to Headphones, My Headphones connected, Forget Headphones, Scan for Headphones, Test Sound and Module Log." width="200"><br><sub><b>Bluetooth headphones</b></sub></td>
+    <td align="center" width="25%"><img src="docs/images/echopoint/screens/chapters.png" alt="Illustration of the chapter list with Chapter 3 selected." width="200"><br><sub><b>Chapter list</b></sub></td>
+  </tr>
+</table>
+<p align="center"><sub>Illustrations drawn from the firmware's layout code and English strings, not device screenshots: the elements and labels match the device; fonts and gray shading differ slightly.</sub></p>
+
 Read and listen on the Metalio E-Ink 4: the CrossPoint e-book reader, plus an
 audiobook player for the built-in speaker and Bluetooth headphones.
 
@@ -52,21 +62,6 @@ The menus on the device still say "CrossPoint".
 
 Audio goes out as 16 kHz mono, which suits speech more than music.
 Which headphones work depends on the board's Bluetooth audio module.
-
-### Screens
-
-<table>
-  <tr>
-    <td align="center" width="25%"><img src="docs/images/echopoint/screens/player.png" alt="Illustration of the audiobook player: book title, chapter, chapter slider with elapsed and remaining minutes, previous chapter, back 30 seconds, play/pause, forward 30 seconds and next chapter buttons, then speed, chapter list, output and volume controls." width="200"><br><sub><b>Player</b></sub></td>
-    <td align="center" width="25%"><img src="docs/images/echopoint/screens/control-center.png" alt="Illustration of the control center swiped down over a book page: an audiobook card with the title and chapter, a chapter slider, transport buttons, a volume slider and an output button." width="200"><br><sub><b>Control center</b></sub></td>
-    <td align="center" width="25%"><img src="docs/images/echopoint/screens/bt-headphones.png" alt="Illustration of the Bluetooth Headphones screen: Audio Output set to Headphones, My Headphones connected, Forget Headphones, Scan for Headphones, Test Sound and Module Log." width="200"><br><sub><b>Bluetooth headphones</b></sub></td>
-    <td align="center" width="25%"><img src="docs/images/echopoint/screens/chapters.png" alt="Illustration of the chapter list with Chapter 3 selected." width="200"><br><sub><b>Chapter list</b></sub></td>
-  </tr>
-</table>
-
-These are illustrations, not device screenshots. They were drawn from the
-firmware's layout code and English strings, so the elements and labels match
-the device; fonts and gray shading differ slightly.
 
 ### How the audio gets out
 
